@@ -543,8 +543,20 @@ class StudentImportView(View):
 @method_decorator(login_required, name='dispatch')
 class QRGenerateView(View):
     def get(self, request):
-        return render(request, 'dashboard/qr_generate.html',
-                      {'students': Student.objects.all().order_by('student_class', 'name')})
+        students = Student.objects.all().order_by('student_class', 'name')
+
+        # Build dict of {student_id: face_url} for enrolled students
+        faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
+        face_photos = {}
+        for student in students:
+            face_path = os.path.join(faces_dir, f'{student.student_id}.jpg')
+            if os.path.exists(face_path):
+                face_photos[student.student_id] = f'/media/student_faces/{student.student_id}.jpg'
+
+        return render(request, 'dashboard/qr_generate.html', {
+            'students': students,
+            'face_photos': face_photos,
+        })
 
     def post(self, request):
         generate_all = request.POST.get('generate_all') == '1'
@@ -572,6 +584,15 @@ class QRDownloadView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+class QRPreviewView(View):
+    """Serves QR code as inline image (for use in <img> tags, no download prompt)."""
+    def get(self, request, student_id):
+        student = get_object_or_404(Student, student_id=student_id)
+        png_bytes = _generate_qr_bytes(student)
+        return HttpResponse(png_bytes, content_type='image/png')
+
+
+@method_decorator(login_required, name='dispatch')
 class QRDownloadAllView(View):
     def get(self, request):
         zip_buf = BytesIO()
@@ -584,6 +605,159 @@ class QRDownloadAllView(View):
         zip_buf.seek(0)
         response = HttpResponse(zip_buf.read(), content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="all_qr_codes.zip"'
+        return response
+
+
+@method_decorator(login_required, name='dispatch')
+class IDCardDownloadView(View):
+    """
+    Generates a printable ID card PNG combining:
+    - Student face photo (left)
+    - QR code (right)
+    - Name, Class, ID below
+    Uses Pillow — no extra dependencies needed.
+    """
+    def get(self, request, student_id):
+        from PIL import Image, ImageDraw, ImageFont
+        import textwrap
+
+        student = get_object_or_404(Student, student_id=student_id)
+
+        # ── Card dimensions ────────────────────────────────────────────────────
+        CARD_W, CARD_H = 800, 320
+        PADDING        = 24
+        FACE_SIZE      = 220   # square face crop
+        QR_SIZE        = 220   # QR code size
+        BG_COLOR       = (255, 255, 255)
+        PRIMARY        = (30,  58,  95)   # dark blue
+        TEXT_DARK      = (31,  41,  55)
+        TEXT_GRAY      = (107, 114, 128)
+        ACCENT         = (232, 160, 32)   # yellow
+
+        card = Image.new('RGB', (CARD_W, CARD_H), BG_COLOR)
+        draw = ImageDraw.Draw(card)
+
+        # ── Header bar ────────────────────────────────────────────────────────
+        draw.rectangle([0, 0, CARD_W, 48], fill=PRIMARY)
+
+        # Try to load a font; fall back to default if not available
+        try:
+            font_title  = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+            font_name   = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 18)
+            font_detail = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 13)
+            font_id     = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', 13)
+            font_small  = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 11)
+        except Exception:
+            font_title = font_name = font_detail = font_id = font_small = ImageFont.load_default()
+
+        draw.text((PADDING, 14), "ABIT — Student Attendance Card", font=font_title, fill=(255, 255, 255))
+
+        # ── Face photo ────────────────────────────────────────────────────────
+        face_x, face_y = PADDING, 60
+        faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
+        face_path = os.path.join(faces_dir, f'{student_id}.jpg')
+
+        if os.path.exists(face_path):
+            face_img = Image.open(face_path).convert('RGB')
+            face_img = face_img.resize((FACE_SIZE, FACE_SIZE), Image.LANCZOS)
+            # Rounded border effect — draw a rect behind
+            draw.rectangle(
+                [face_x - 3, face_y - 3, face_x + FACE_SIZE + 3, face_y + FACE_SIZE + 3],
+                outline=ACCENT, width=3
+            )
+            card.paste(face_img, (face_x, face_y))
+        else:
+            # Placeholder if no face enrolled
+            draw.rectangle([face_x, face_y, face_x + FACE_SIZE, face_y + FACE_SIZE],
+                           fill=(241, 245, 249), outline=(203, 213, 225), width=2)
+            draw.text((face_x + 55, face_y + 90), "No Face\nEnrolled",
+                      font=font_detail, fill=TEXT_GRAY, align='center')
+
+        # ── QR code ───────────────────────────────────────────────────────────
+        qr_bytes = _generate_qr_bytes(student)
+        qr_img   = Image.open(BytesIO(qr_bytes)).convert('RGB')
+        qr_img   = qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS)
+        qr_x     = CARD_W - PADDING - QR_SIZE
+        qr_y     = 60
+        draw.rectangle(
+            [qr_x - 3, qr_y - 3, qr_x + QR_SIZE + 3, qr_y + QR_SIZE + 3],
+            outline=(203, 213, 225), width=2
+        )
+        card.paste(qr_img, (qr_x, qr_y))
+
+        # ── Student info (centre column) ──────────────────────────────────────
+        info_x = face_x + FACE_SIZE + PADDING
+        info_w = qr_x - info_x - PADDING
+
+        # Name (wrap if long)
+        name_lines = textwrap.wrap(student.name, width=18)
+        y_cursor = 70
+        for line in name_lines[:2]:
+            draw.text((info_x, y_cursor), line, font=font_name, fill=TEXT_DARK)
+            y_cursor += 26
+
+        y_cursor += 6
+        draw.text((info_x, y_cursor), student.student_class, font=font_detail, fill=TEXT_GRAY)
+        y_cursor += 22
+
+        # ID pill
+        id_text = f"ID: {student.student_id}"
+        draw.rounded_rectangle(
+            [info_x, y_cursor, info_x + 130, y_cursor + 24],
+            radius=6, fill=(239, 246, 255)
+        )
+        draw.text((info_x + 8, y_cursor + 4), id_text, font=font_id, fill=PRIMARY)
+        y_cursor += 36
+
+        # Face status
+        face_enrolled = os.path.exists(face_path)
+        face_label = "✓ Face Enrolled" if face_enrolled else "✗ Face Not Enrolled"
+        face_color = (22, 163, 74) if face_enrolled else (220, 38, 38)
+        draw.text((info_x, y_cursor), face_label, font=font_small, fill=face_color)
+        y_cursor += 18
+
+        # Scan to mark attendance hint
+        draw.text((info_x, y_cursor + 6), "Scan QR to mark attendance",
+                  font=font_small, fill=TEXT_GRAY)
+
+        # ── Bottom bar ────────────────────────────────────────────────────────
+        draw.rectangle([0, CARD_H - 28, CARD_W, CARD_H], fill=(248, 250, 252))
+        draw.line([0, CARD_H - 28, CARD_W, CARD_H - 28], fill=(226, 232, 240), width=1)
+        draw.text((PADDING, CARD_H - 20),
+                  "Ajay Binay Institute of Technology — Attendance System",
+                  font=font_small, fill=TEXT_GRAY)
+
+        # ── Serve as PNG download ─────────────────────────────────────────────
+        out_buf = BytesIO()
+        card.save(out_buf, format='PNG', dpi=(150, 150))
+        out_buf.seek(0)
+
+        safe_name = student.name.replace(' ', '_')
+        response = HttpResponse(out_buf.read(), content_type='image/png')
+        response['Content-Disposition'] = f'attachment; filename="IDCard_{student_id}_{safe_name}.png"'
+
+        # Mark QR as generated
+        student.qr_generated = True
+        student.save(update_fields=['qr_generated'])
+        return response
+
+
+@method_decorator(login_required, name='dispatch')
+class IDCardDownloadAllView(View):
+    """Download all student ID cards as a ZIP."""
+    def get(self, request):
+        from PIL import Image
+        zip_buf = BytesIO()
+        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for student in Student.objects.all():
+                # Reuse single card view logic by calling its get() internally
+                view = IDCardDownloadView()
+                resp = view.get(request, student.student_id)
+                safe_name = student.name.replace(' ', '_')
+                zf.writestr(f"IDCard_{student.student_id}_{safe_name}.png", resp.content)
+        zip_buf.seek(0)
+        response = HttpResponse(zip_buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="all_id_cards.zip"'
         return response
 
 
@@ -701,7 +875,7 @@ class FaceEnrollStudentView(View):
             if image_file.content_type not in allowed:
                 return JsonResponse({'success': False,
                                      'message': 'Only JPG, PNG, or WEBP images are accepted'})
-            if image_file.size > 10 * 1024 * 1024:  # 10MB limit
+            if image_file.size > 10 * 1024 * 1024:
                 return JsonResponse({'success': False, 'message': 'Image too large — max 10MB'})
 
         image_bytes = image_file.read()
@@ -713,22 +887,18 @@ class FaceEnrollStudentView(View):
             return JsonResponse({'success': False, 'message': 'Could not read image — try a different file'})
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Use CNN model for uploaded photos (more accurate for non-frontal faces)
-        # Use HOG for webcam (faster, sufficient for frontal faces)
-        model = 'hog' if request.FILES.get('frame') else 'hog'
-        locations = face_recognition.face_locations(rgb, model=model)
+        locations = face_recognition.face_locations(rgb, model='hog')
 
         if not locations:
             return JsonResponse({
                 'success': False,
-                'message': 'No face detected in image. Ensure the face is clear, well-lit, and not obscured.'
+                'message': 'No face detected. Ensure the face is clear, well-lit, and not obscured.'
             })
 
         if len(locations) > 1:
             return JsonResponse({
                 'success': False,
-                'message': f'{len(locations)} faces detected. Please use a photo with only one person.'
+                'message': f'{len(locations)} faces detected. Use a photo with only one person.'
             })
 
         encodings_list = face_recognition.face_encodings(rgb, locations)
@@ -737,6 +907,28 @@ class FaceEnrollStudentView(View):
                                  'message': 'Could not encode face — try a clearer, better-lit photo'})
 
         encoding = encodings_list[0]
+
+        # ── Save cropped face image to media/student_faces/<id>.jpg ──────────
+        top, right, bottom, left = locations[0]
+        # Add 30% padding around detected face box
+        h_img, w_img = frame.shape[:2]
+        pad_y = int((bottom - top) * 0.3)
+        pad_x = int((right - left) * 0.3)
+        y1 = max(0, top - pad_y)
+        y2 = min(h_img, bottom + pad_y)
+        x1 = max(0, left - pad_x)
+        x2 = min(w_img, right + pad_x)
+        face_crop = frame[y1:y2, x1:x2]
+
+        # Resize to a standard 300×300 thumbnail
+        face_thumb = cv2.resize(face_crop, (300, 300), interpolation=cv2.INTER_AREA)
+
+        faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
+        os.makedirs(faces_dir, exist_ok=True)
+        face_path = os.path.join(faces_dir, f'{student_id}.jpg')
+        cv2.imwrite(face_path, face_thumb)
+
+        # ── Save encoding ────────────────────────────────────────────────────
         encodings = _load_encodings()
         encodings[student_id] = {'name': student.name, 'encoding': encoding}
         _save_encodings(encodings)
@@ -750,6 +942,7 @@ class FaceEnrollStudentView(View):
             'message': f'{student.name} enrolled successfully via {source}',
             'student_name': student.name,
             'source': source,
+            'face_url': f'/media/student_faces/{student_id}.jpg',
         })
 
 
