@@ -1,92 +1,132 @@
 {% extends "dashboard/base.html" %}
+{% load dict_extras %}
 
 {% block title %}QR Codes — ABIT Attendance{% endblock %}
 {% block page_title %}QR Code Generator{% endblock %}
-{% block page_subtitle %}Generate and download student QR codes{% endblock %}
+{% block page_subtitle %}Each card shows the student face photo + QR code{% endblock %}
 
 {% block header_actions %}
-  <a href="{% url 'qr_download_all' %}"
+  <a href="{% url 'id_card_download_all' %}"
      class="flex items-center gap-2 bg-primary hover:bg-blue-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
     </svg>
-    Download All (ZIP)
+    Download All ID Cards (ZIP)
   </a>
 {% endblock %}
 
 {% block content %}
 
-<!-- Top action bar -->
-<div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-6 flex flex-wrap gap-3 items-center">
-  <button onclick="generateSelected()"
-          class="flex items-center gap-2 bg-accent text-primary font-semibold px-4 py-2 rounded-lg text-sm hover:bg-yellow-400 transition-colors">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0a8 8 0 01-8 8 8 8 0 010-16 8 8 0 018 8z"/>
+<!-- Action bar -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-6 flex flex-wrap items-center gap-3">
+  <button onclick="selectAll()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">Select All</button>
+  <button onclick="selectNone()" class="text-sm text-slate-500 hover:text-slate-700 font-medium">Deselect All</button>
+  <span class="text-slate-300">|</span>
+  <a href="{% url 'qr_download_all' %}"
+     class="text-sm text-slate-600 hover:text-slate-800 font-medium flex items-center gap-1">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
     </svg>
-    Generate Selected
-  </button>
-
-  <button onclick="selectAll()"
-          class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">Select All</button>
-  <button onclick="selectNone()"
-          class="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors">Deselect All</button>
-
-  <span id="generateStatus" class="text-sm text-slate-500 ml-auto"></span>
+    QR Only ZIP
+  </a>
+  <span id="actionStatus" class="text-sm ml-auto"></span>
 </div>
 
 <!-- Student grid -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
   {% for student in students %}
-  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex flex-col gap-3
-              hover:shadow-md transition-shadow student-card"
-       data-sid="{{ student.student_id }}">
 
-    <!-- Checkbox + name -->
-    <div class="flex items-start gap-3">
-      <input type="checkbox" class="student-checkbox mt-1 w-4 h-4 rounded border-slate-300
-             text-blue-600 focus:ring-blue-500 cursor-pointer"
-             value="{{ student.student_id }}" />
-      <div class="flex-1 min-w-0">
-        <p class="font-semibold text-slate-800 truncate">{{ student.name }}</p>
-        <p class="text-xs text-slate-500">{{ student.student_class }}</p>
-        <p class="text-xs font-mono text-slate-400">ID: {{ student.student_id }}</p>
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden
+              hover:shadow-md transition-shadow">
+
+    <!-- Card top: face + QR side by side -->
+    <div class="flex gap-0">
+
+      <!-- Face photo -->
+      <div class="w-1/2 bg-slate-50 flex items-center justify-center p-3"
+           style="min-height:140px">
+        {% with face_url=face_photos|get_item:student.student_id %}
+        {% if face_url %}
+          <img src="{{ face_url }}"
+               alt="{{ student.name }}"
+               class="w-full h-32 object-cover rounded-lg border border-slate-200"/>
+        {% else %}
+          <div class="w-full h-32 bg-slate-100 rounded-lg border border-dashed border-slate-300
+                      flex flex-col items-center justify-center gap-1">
+            <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-xs text-slate-400 text-center px-2">No face enrolled</p>
+            <a href="{% url 'face_enroll' %}"
+               class="text-xs text-blue-500 hover:text-blue-700 font-medium">Enroll →</a>
+          </div>
+        {% endif %}
+        {% endwith %}
+      </div>
+
+      <!-- QR code preview -->
+      <div class="w-1/2 bg-white flex items-center justify-center p-3 border-l border-slate-100">
+        <img src="{% url 'qr_preview' student.student_id %}"
+             alt="QR {{ student.student_id }}"
+             class="w-full h-32 object-contain"
+             loading="lazy"/>
+      </div>
+
+    </div>
+
+    <!-- Student info -->
+    <div class="px-4 py-3 border-t border-slate-100">
+      <div class="flex items-start gap-2 mb-2">
+        <input type="checkbox"
+               class="student-checkbox mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer flex-shrink-0"
+               value="{{ student.student_id }}"/>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-slate-800 truncate text-sm">{{ student.name }}</p>
+          <p class="text-xs text-slate-500 truncate">{{ student.student_class }}</p>
+          <p class="text-xs font-mono text-slate-400">ID: {{ student.student_id }}</p>
+        </div>
+      </div>
+
+      <!-- Status badges -->
+      <div class="flex gap-1.5 flex-wrap mb-3">
+        {% if student.student_id in face_photos %}
+          <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Face</span>
+        {% else %}
+          <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">✗ No Face</span>
+        {% endif %}
+        {% if student.qr_generated %}
+          <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">✓ QR</span>
+        {% else %}
+          <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">QR Pending</span>
+        {% endif %}
+      </div>
+
+      <!-- Download buttons -->
+      <div class="flex gap-2">
+        <a href="{% url 'id_card_download' student.student_id %}"
+           class="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-blue-900
+                  text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          ID Card
+        </a>
+        <a href="{% url 'qr_download' student.student_id %}"
+           class="flex-1 flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200
+                  text-slate-700 text-xs font-semibold py-2 rounded-lg transition-colors">
+          QR Only
+        </a>
       </div>
     </div>
-
-    <!-- QR status badge -->
-    <div class="flex items-center gap-2">
-      {% if student.qr_generated %}
-        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-          ✓ QR Generated
-        </span>
-      {% else %}
-        <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          Not generated
-        </span>
-      {% endif %}
-    </div>
-
-    <!-- Download button -->
-    <a href="{% url 'qr_download' student.student_id %}"
-       class="flex items-center justify-center gap-2 bg-slate-50 hover:bg-blue-50
-              border border-slate-200 hover:border-blue-300
-              text-slate-700 hover:text-blue-700
-              text-xs font-medium py-2 rounded-lg transition-colors">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-      </svg>
-      Download QR
-    </a>
   </div>
+
   {% empty %}
   <div class="col-span-full text-center py-16 text-slate-400">
-    <p class="text-lg font-medium">No students found.</p>
-    <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline text-sm mt-2 inline-block">
-      Add students →
-    </a>
+    <p class="font-medium">No students found.</p>
+    <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline text-sm mt-2 inline-block">Add students →</a>
   </div>
   {% endfor %}
 </div>
@@ -95,49 +135,7 @@
 
 {% block extra_js %}
 <script>
-  function getSelectedIds() {
-    return [...document.querySelectorAll('.student-checkbox:checked')].map(cb => cb.value);
-  }
-
-  function selectAll() {
-    document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = true);
-  }
-
-  function selectNone() {
-    document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
-  }
-
-  async function generateSelected() {
-    const ids = getSelectedIds();
-    const status = document.getElementById('generateStatus');
-
-    if (ids.length === 0) {
-      status.textContent = 'Select at least one student.';
-      status.className = 'text-sm text-red-500 ml-auto';
-      return;
-    }
-
-    status.textContent = `Generating ${ids.length} QR code(s)...`;
-    status.className = 'text-sm text-blue-600 ml-auto';
-
-    const fd = new FormData();
-    ids.forEach(id => fd.append('student_ids', id));
-    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-
-    try {
-      const resp = await fetch('{% url "qr_generate" %}', { method: 'POST', body: fd });
-      const data = await resp.json();
-
-      if (data.success) {
-        status.textContent = `✓ ${data.count} QR code(s) marked as generated. Download individually above.`;
-        status.className = 'text-sm text-green-600 ml-auto';
-        // Refresh page to update badges
-        setTimeout(() => location.reload(), 1500);
-      }
-    } catch (e) {
-      status.textContent = 'Error — try again.';
-      status.className = 'text-sm text-red-500 ml-auto';
-    }
-  }
+  function selectAll()  { document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = true); }
+  function selectNone() { document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false); }
 </script>
 {% endblock %}

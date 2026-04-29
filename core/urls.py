@@ -29,7 +29,10 @@ urlpatterns = [
     # ── QR Generation ─────────────────────────────────────────────────────────
     path('qr/generate/', views.QRGenerateView.as_view(), name='qr_generate'),
     path('qr/download/<str:student_id>/', views.QRDownloadView.as_view(), name='qr_download'),
+    path('qr/preview/<str:student_id>/', views.QRPreviewView.as_view(), name='qr_preview'),
     path('qr/download-all/', views.QRDownloadAllView.as_view(), name='qr_download_all'),
+    path('qr/id-card/<str:student_id>/', views.IDCardDownloadView.as_view(), name='id_card_download'),
+    path('qr/id-cards-all/', views.IDCardDownloadAllView.as_view(), name='id_card_download_all'),
 
     # ── Face Enrollment ────────────────────────────────────────────────────────
     path('face/enroll/', views.FaceEnrollView.as_view(), name='face_enroll'),
