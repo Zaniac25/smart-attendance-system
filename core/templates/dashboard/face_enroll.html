@@ -1,0 +1,482 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Face Enrollment — ABIT Attendance{% endblock %}
+{% block page_title %}Face Enrollment{% endblock %}
+{% block page_subtitle %}Enroll student faces via live webcam or photo upload{% endblock %}
+
+{% block content %}
+
+{% if not face_available %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-5 mb-6 flex items-start gap-3">
+  <span class="text-red-500 text-xl flex-shrink-0">⚠</span>
+  <div>
+    <h4 class="font-semibold text-red-800">face_recognition library not installed</h4>
+    <p class="text-red-700 text-sm mt-1">
+      Run: <code class="bg-red-100 px-2 py-0.5 rounded font-mono">pip install face-recognition</code>
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Enrollment Modal ────────────────────────────────────────────────────── -->
+<div id="enrollModal"
+     class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden"
+     onclick="handleBackdropClick(event)">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+       onclick="event.stopPropagation()">
+
+    <!-- Modal header -->
+    <div class="bg-primary px-6 py-4 flex items-center justify-between">
+      <div>
+        <h3 class="text-white font-semibold text-lg" id="modalStudentName">Enrolling: —</h3>
+        <p class="text-blue-300 text-xs" id="modalStudentInfo">—</p>
+      </div>
+      <button onclick="closeModal()" class="text-blue-300 hover:text-white transition-colors p-1">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-200">
+      <button id="tabWebcam" onclick="switchTab('webcam')"
+              class="flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-white
+                     transition-all flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        Live Webcam
+      </button>
+      <button id="tabPhoto" onclick="switchTab('photo')"
+              class="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50
+                     border-b-2 border-transparent transition-all flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Upload Photo
+      </button>
+    </div>
+
+    <!-- Tab: Webcam -->
+    <div id="panelWebcam">
+      <div class="relative bg-black" style="aspect-ratio:4/3">
+        <video id="enrollVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+        <!-- Face oval -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="w-44 h-56 border-4 border-yellow-400 rounded-full opacity-80"
+               style="animation:ovalPulse 2s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-sm text-slate-600 bg-blue-50 rounded-lg px-4 py-2.5">
+          Look directly at the camera with good lighting, then click <b>Capture Face</b>.
+        </p>
+        <div id="webcamResult" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+        <div class="flex gap-3">
+          <button id="captureBtnWebcam" onclick="captureWebcam()"
+                  class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold
+                         py-2.5 rounded-lg transition-colors text-sm">
+            📸 Capture Face
+          </button>
+          <button onclick="closeModal()"
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold
+                         py-2.5 rounded-lg transition-colors text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Photo Upload -->
+    <div id="panelPhoto" class="hidden">
+      <div class="p-5 space-y-4">
+
+        <!-- Info box -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800 space-y-1">
+          <p class="font-semibold">For students who can't be present</p>
+          <ul class="text-xs space-y-0.5 list-disc list-inside text-amber-700">
+            <li>Use a clear, front-facing passport/ID photo</li>
+            <li>Face must be fully visible — no glasses, mask, or heavy shadow</li>
+            <li>Only one face per photo (no group photos)</li>
+            <li>Accepted formats: JPG, PNG, WEBP — max 10MB</li>
+          </ul>
+        </div>
+
+        <!-- Drop / preview area -->
+        <div id="photoDropZone"
+             onclick="document.getElementById('photoInput').click()"
+             class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center
+                    hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer">
+          <img id="photoPreview" src="" alt="" class="hidden mx-auto max-h-48 rounded-lg mb-3 object-contain"/>
+          <div id="photoPlaceholder">
+            <svg class="w-10 h-10 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <p class="text-sm font-medium text-slate-600">Click to choose photo</p>
+            <p class="text-xs text-slate-400 mt-0.5">JPG, PNG, WEBP — max 10MB</p>
+          </div>
+          <p id="photoFileName" class="hidden text-xs text-blue-600 font-medium mt-1"></p>
+          <input type="file" id="photoInput" accept=".jpg,.jpeg,.png,.webp,image/*"
+                 class="hidden" onchange="handlePhotoSelect(this)"/>
+        </div>
+
+        <div id="photoResult" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+        <div class="flex gap-3">
+          <button id="uploadBtn" onclick="uploadPhoto()" disabled
+                  class="flex-1 bg-primary hover:bg-blue-900 text-white font-semibold
+                         py-2.5 rounded-lg transition-colors text-sm
+                         disabled:opacity-40 disabled:cursor-not-allowed">
+            Upload &amp; Enroll
+          </button>
+          <button onclick="closeModal()"
+                  class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold
+                         py-2.5 rounded-lg transition-colors text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Page Content ────────────────────────────────────────────────────────── -->
+<div class="space-y-5">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 text-center">
+      <p class="text-2xl font-bold text-slate-800">{{ students|length }}</p>
+      <p class="text-xs text-slate-500 mt-0.5">Total Students</p>
+    </div>
+    <div class="bg-white rounded-xl border border-green-100 shadow-sm p-4 text-center">
+      <p class="text-2xl font-bold text-green-600" id="enrolledCount">{{ enrolled_ids|length }}</p>
+      <p class="text-xs text-slate-500 mt-0.5">Enrolled</p>
+    </div>
+    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 text-center">
+      <p class="text-2xl font-bold text-red-500" id="pendingCount">
+        {% widthratio students|length 1 1 as total_count %}{{ students|length|add:"-0" }}
+      </p>
+      <p class="text-xs text-slate-500 mt-0.5">Pending</p>
+    </div>
+  </div>
+
+  <!-- Student table -->
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-semibold text-slate-800">All Students</h3>
+      <div class="flex items-center gap-4 text-xs text-slate-500">
+        <span class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span> Webcam
+        </span>
+        <span class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span> Upload Photo
+        </span>
+      </div>
+    </div>
+
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-100">
+        <tr>
+          <th class="text-left text-xs text-slate-500 font-semibold uppercase tracking-wide px-6 py-3">ID</th>
+          <th class="text-left text-xs text-slate-500 font-semibold uppercase tracking-wide px-4 py-3">Name</th>
+          <th class="text-left text-xs text-slate-500 font-semibold uppercase tracking-wide px-4 py-3">Class</th>
+          <th class="text-center text-xs text-slate-500 font-semibold uppercase tracking-wide px-4 py-3">Status</th>
+          <th class="text-center text-xs text-slate-500 font-semibold uppercase tracking-wide px-4 py-3">Enroll via Webcam</th>
+          <th class="text-center text-xs text-slate-500 font-semibold uppercase tracking-wide px-4 py-3">Enroll via Photo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for student in students %}
+        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors"
+            id="row-{{ student.student_id }}">
+          <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ student.student_id }}</td>
+          <td class="px-4 py-3 font-medium text-slate-800">{{ student.name }}</td>
+          <td class="px-4 py-3 text-slate-500 text-xs">{{ student.student_class }}</td>
+          <td class="px-4 py-3 text-center">
+            <span id="badge-{{ student.student_id }}"
+                  class="text-xs font-semibold px-2.5 py-1 rounded-full
+                         {% if student.student_id in enrolled_ids %}
+                           bg-green-100 text-green-700
+                         {% else %}
+                           bg-red-100 text-red-600
+                         {% endif %}">
+              {% if student.student_id in enrolled_ids %}✓ Enrolled{% else %}Not Enrolled{% endif %}
+            </span>
+          </td>
+
+          <!-- Webcam enroll -->
+          <td class="px-4 py-3 text-center">
+            {% if face_available %}
+            <button onclick="openEnroll('{{ student.student_id }}', '{{ student.name }}', '{{ student.student_class }}', 'webcam')"
+                    id="btnWebcam-{{ student.student_id }}"
+                    class="{% if student.student_id in enrolled_ids %}bg-amber-100 hover:bg-amber-200 text-amber-700{% else %}bg-blue-100 hover:bg-blue-200 text-blue-700{% endif %}
+                           text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+              {% if student.student_id in enrolled_ids %}Re-enroll{% else %}Enroll{% endif %}
+            </button>
+            {% else %}
+            <span class="text-slate-300 text-xs">Unavailable</span>
+            {% endif %}
+          </td>
+
+          <!-- Photo upload enroll -->
+          <td class="px-4 py-3 text-center">
+            {% if face_available %}
+            <button onclick="openEnroll('{{ student.student_id }}', '{{ student.name }}', '{{ student.student_class }}', 'photo')"
+                    id="btnPhoto-{{ student.student_id }}"
+                    class="{% if student.student_id in enrolled_ids %}bg-purple-100 hover:bg-purple-200 text-purple-700{% else %}bg-purple-100 hover:bg-purple-200 text-purple-700{% endif %}
+                           text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+              {% if student.student_id in enrolled_ids %}Re-upload{% else %}Upload{% endif %}
+            </button>
+            {% else %}
+            <span class="text-slate-300 text-xs">Unavailable</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="px-6 py-12 text-center text-slate-400">
+            No students found.
+            <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline ml-1">Add students first →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+@keyframes ovalPulse { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+let enrollStream = null;
+let currentSid   = null;
+let currentTab   = 'webcam';
+let selectedPhotoFile = null;
+
+const enrollVideo = document.getElementById('enrollVideo');
+const captureCanvas = document.createElement('canvas');
+const captureCtx    = captureCanvas.getContext('2d');
+
+// Count pending on load
+(function(){
+  const badges = document.querySelectorAll('[id^="badge-"]');
+  const enrolled = [...badges].filter(b => b.textContent.includes('✓')).length;
+  document.getElementById('enrolledCount').textContent = enrolled;
+  document.getElementById('pendingCount').textContent  = badges.length - enrolled;
+})();
+
+// ── Open modal ────────────────────────────────────────────────────────────────
+async function openEnroll(sid, name, cls, tab) {
+  currentSid = sid;
+  selectedPhotoFile = null;
+
+  document.getElementById('modalStudentName').textContent = name;
+  document.getElementById('modalStudentInfo').textContent = `${cls}  ·  ID: ${sid}`;
+  document.getElementById('enrollModal').classList.remove('hidden');
+
+  // Reset results
+  ['webcamResult','photoResult'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.add('hidden');
+    el.textContent = '';
+  });
+  document.getElementById('captureBtnWebcam').disabled = false;
+  document.getElementById('captureBtnWebcam').textContent = '📸 Capture Face';
+  document.getElementById('uploadBtn').disabled = true;
+  resetPhotoPreview();
+
+  switchTab(tab);
+
+  if(tab === 'webcam') await startWebcam();
+}
+
+function closeModal() {
+  stopWebcam();
+  document.getElementById('enrollModal').classList.add('hidden');
+  currentSid = selectedPhotoFile = null;
+  resetPhotoPreview();
+}
+
+function handleBackdropClick(e) {
+  if(e.target === document.getElementById('enrollModal')) closeModal();
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+async function switchTab(tab) {
+  currentTab = tab;
+  const isWebcam = tab === 'webcam';
+
+  document.getElementById('tabWebcam').className = `flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 border-b-2 ${
+    isWebcam ? 'text-white bg-primary border-white' : 'text-slate-500 hover:bg-slate-50 border-transparent'
+  }`;
+  document.getElementById('tabPhoto').className = `flex-1 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 border-b-2 ${
+    !isWebcam ? 'text-white bg-primary border-white' : 'text-slate-500 hover:bg-slate-50 border-transparent'
+  }`;
+
+  document.getElementById('panelWebcam').classList.toggle('hidden', !isWebcam);
+  document.getElementById('panelPhoto').classList.toggle('hidden', isWebcam);
+
+  if(isWebcam) { await startWebcam(); }
+  else         { stopWebcam(); }
+}
+
+// ── Webcam ────────────────────────────────────────────────────────────────────
+async function startWebcam() {
+  if(enrollStream) return;
+  try {
+    enrollStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 } }
+    });
+    enrollVideo.srcObject = enrollStream;
+    await enrollVideo.play();
+  } catch(e) {
+    showResult('webcam', false, '❌ Camera access denied — use Photo Upload instead');
+  }
+}
+
+function stopWebcam() {
+  if(enrollStream) {
+    enrollStream.getTracks().forEach(t => t.stop());
+    enrollStream = null;
+  }
+  enrollVideo.srcObject = null;
+}
+
+async function captureWebcam() {
+  if(!enrollVideo.videoWidth) { showResult('webcam', false, 'Camera not ready — wait a moment'); return; }
+  const btn = document.getElementById('captureBtnWebcam');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  captureCanvas.width  = enrollVideo.videoWidth;
+  captureCanvas.height = enrollVideo.videoHeight;
+  captureCtx.drawImage(enrollVideo, 0, 0);
+
+  const blob = await new Promise(res => captureCanvas.toBlob(res, 'image/jpeg', 0.9));
+  await submitEnrollment(blob, 'frame');
+}
+
+// ── Photo upload ──────────────────────────────────────────────────────────────
+function handlePhotoSelect(input) {
+  if(!input.files.length) return;
+  const file = input.files[0];
+  selectedPhotoFile = file;
+
+  // Show preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('photoPreview');
+    preview.src = e.target.result;
+    preview.classList.remove('hidden');
+    document.getElementById('photoPlaceholder').classList.add('hidden');
+    document.getElementById('photoFileName').textContent = file.name;
+    document.getElementById('photoFileName').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('uploadBtn').disabled = false;
+}
+
+async function uploadPhoto() {
+  if(!selectedPhotoFile) return;
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  await submitEnrollment(selectedPhotoFile, 'photo');
+}
+
+function resetPhotoPreview() {
+  document.getElementById('photoPreview').classList.add('hidden');
+  document.getElementById('photoPreview').src = '';
+  document.getElementById('photoPlaceholder').classList.remove('hidden');
+  document.getElementById('photoFileName').classList.add('hidden');
+  document.getElementById('uploadBtn').disabled = true;
+  document.getElementById('uploadBtn').textContent = 'Upload & Enroll';
+  const inp = document.getElementById('photoInput');
+  if(inp) inp.value = '';
+}
+
+// ── Submit to server ──────────────────────────────────────────────────────────
+async function submitEnrollment(fileOrBlob, fieldName) {
+  const fd = new FormData();
+  fd.append(fieldName, fileOrBlob, fieldName === 'frame' ? 'frame.jpg' : fileOrBlob.name);
+  fd.append('csrfmiddlewaretoken', CSRF);
+
+  try {
+    const resp = await fetch(`/face/enroll/${currentSid}/`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    const tab  = fieldName === 'frame' ? 'webcam' : 'photo';
+
+    if(data.success) {
+      showResult(tab, true, `✅ ${data.message}`);
+      updateStudentRow(currentSid, true);
+      setTimeout(closeModal, 1800);
+    } else {
+      showResult(tab, false, `❌ ${data.message}`);
+      if(tab === 'webcam') {
+        document.getElementById('captureBtnWebcam').disabled = false;
+        document.getElementById('captureBtnWebcam').textContent = '📸 Try Again';
+      } else {
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('uploadBtn').textContent = 'Try Again';
+      }
+    }
+  } catch(e) {
+    const tab = fieldName === 'frame' ? 'webcam' : 'photo';
+    showResult(tab, false, '❌ Network error — try again');
+  }
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function showResult(tab, success, msg) {
+  const el = document.getElementById(tab === 'webcam' ? 'webcamResult' : 'photoResult');
+  el.className = `rounded-lg px-4 py-3 text-sm font-medium ${success ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function updateStudentRow(sid, enrolled) {
+  const badge      = document.getElementById(`badge-${sid}`);
+  const btnWebcam  = document.getElementById(`btnWebcam-${sid}`);
+  const btnPhoto   = document.getElementById(`btnPhoto-${sid}`);
+
+  if(badge) {
+    badge.textContent = enrolled ? '✓ Enrolled' : 'Not Enrolled';
+    badge.className = `text-xs font-semibold px-2.5 py-1 rounded-full ${enrolled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`;
+  }
+  if(btnWebcam && enrolled) { btnWebcam.textContent = 'Re-enroll'; btnWebcam.className = 'bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors'; }
+  if(btnPhoto  && enrolled) { btnPhoto.textContent  = 'Re-upload'; }
+
+  // Update counts
+  const allBadges  = document.querySelectorAll('[id^="badge-"]');
+  const enrolledN  = [...allBadges].filter(b => b.textContent.includes('✓')).length;
+  document.getElementById('enrolledCount').textContent = enrolledN;
+  document.getElementById('pendingCount').textContent  = allBadges.length - enrolledN;
+}
+
+// Drop support for photo zone
+const pdz = document.getElementById('photoDropZone');
+if(pdz) {
+  pdz.addEventListener('dragover', e => { e.preventDefault(); pdz.classList.add('border-blue-400'); });
+  pdz.addEventListener('dragleave', () => pdz.classList.remove('border-blue-400'));
+  pdz.addEventListener('drop', e => {
+    e.preventDefault(); pdz.classList.remove('border-blue-400');
+    if(e.dataTransfer.files.length) {
+      document.getElementById('photoInput').files = e.dataTransfer.files;
+      handlePhotoSelect(document.getElementById('photoInput'));
+    }
+  });
+}
+</script>
+{% endblock %}

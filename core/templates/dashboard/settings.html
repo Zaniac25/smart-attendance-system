@@ -1,0 +1,191 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Settings — ABIT Attendance{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+{% block page_subtitle %}Configure attendance rules and notifications{% endblock %}
+
+{% block content %}
+
+{% if success %}
+<div class="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 mb-6 flex items-center gap-2 text-sm">
+  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+  </svg>
+  {{ success }}
+</div>
+{% endif %}
+
+<form method="POST" id="settingsForm">
+  {% csrf_token %}
+  <!-- Hidden field that JS fills with HH:MM before submit -->
+  <input type="hidden" name="late_cutoff_time" id="late_cutoff_time_hidden" />
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Attendance Rules -->
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+      <h3 class="font-semibold text-slate-800 mb-1">Attendance Rules</h3>
+      <p class="text-slate-500 text-xs mb-5">Configure late arrival detection</p>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">
+          Late Arrival Cutoff Time
+        </label>
+
+        <!-- AM/PM picker -->
+        <div class="flex items-center gap-2">
+          <!-- Hour -->
+          <select id="cutoff_hour"
+        class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
+  <option value="1">1</option>
+  <option value="2">2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+  <option value="5">5</option>
+  <option value="6">6</option>
+  <option value="7">7</option>
+  <option value="8">8</option>
+  <option value="9">9</option>
+  <option value="10">10</option>
+  <option value="11">11</option>
+  <option value="12">12</option>
+</select>
+
+          <span class="text-slate-500 font-bold">:</span>
+
+          <!-- Minute -->
+          <select id="cutoff_minute"
+                  class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
+            <option value="00">00</option>
+            <option value="15">15</option>
+            <option value="30">30</option>
+            <option value="45">45</option>
+          </select>
+
+          <!-- AM/PM -->
+          <select id="cutoff_ampm"
+                  class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+
+        <p id="cutoffPreview" class="text-blue-600 text-xs font-medium mt-2"></p>
+        <p class="text-slate-400 text-xs mt-1">
+          Attendance marked after this time is flagged as <span class="text-yellow-600 font-medium">Late</span>
+        </p>
+
+        <!-- Current saved value display -->
+        <p class="text-slate-500 text-xs mt-2">
+          Currently saved:
+          <span class="font-semibold text-slate-700">{{ config.late_cutoff_time|time:"g:i A" }}</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Email Notifications -->
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+      <h3 class="font-semibold text-slate-800 mb-1">Email Notifications</h3>
+      <p class="text-slate-500 text-xs mb-5">Daily absent report via Gmail</p>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Recipient Email</label>
+          <input type="email" name="notification_email"
+                 value="{{ config.notification_email }}"
+                 placeholder="admin@example.com"
+                 class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <input type="checkbox" name="notify_on_absent" id="notify_on_absent"
+                 {% if config.notify_on_absent %}checked{% endif %}
+                 class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+          <label for="notify_on_absent" class="text-sm font-medium text-slate-700">
+            Send daily absent email at 6:00 PM IST
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
+  <!-- Gmail SMTP -->
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mt-4 text-sm text-blue-800">
+    <h4 class="font-semibold mb-2">📧 Gmail SMTP Setup (one-time)</h4>
+    <p class="mb-2">Set these environment variables before running Django:</p>
+    <pre class="bg-blue-100 rounded-lg p-3 text-xs font-mono overflow-x-auto">export EMAIL_HOST_USER="your_gmail@gmail.com"
+export EMAIL_HOST_PASSWORD="your_16_char_app_password"</pre>
+    <p class="mt-2 text-xs text-blue-600">
+      Use a Gmail App Password, not your regular password.
+      <a href="https://support.google.com/accounts/answer/185833" target="_blank"
+         class="underline ml-1">How to create one →</a>
+    </p>
+  </div>
+
+  <div class="mt-6">
+    <button type="submit"
+            class="bg-primary hover:bg-blue-900 text-white font-semibold px-6 py-2.5
+                   rounded-lg transition-colors text-sm shadow-md">
+      Save Settings
+    </button>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function updatePreview() {
+    const h    = document.getElementById('cutoff_hour').value;
+    const m    = document.getElementById('cutoff_minute').value;
+    const ampm = document.getElementById('cutoff_ampm').value;
+    document.getElementById('cutoffPreview').textContent = `Selected: ${h}:${m} ${ampm}`;
+
+    // Convert to 24h HH:MM string for hidden field
+    let h24 = parseInt(h);
+    if (ampm === 'AM' && h24 === 12) h24 = 0;
+    if (ampm === 'PM' && h24 !== 12) h24 += 12;
+    const padded = String(h24).padStart(2, '0');
+    document.getElementById('late_cutoff_time_hidden').value = `${padded}:${m}`;
+  }
+
+  // Step 1: Populate selects from saved value FIRST
+  const saved = "{{ config.late_cutoff_time|time:'H:i' }}";
+  if (saved && saved !== 'None' && saved.includes(':')) {
+    const [hStr, mStr] = saved.split(':');
+    let h = parseInt(hStr, 10);
+    const rawMin = mStr.slice(0, 2);  // take only MM part
+
+    // Find closest minute option: 00/15/30/45
+    const minOptions = [0, 15, 30, 45];
+    const nearestMin = minOptions.reduce((prev, curr) =>
+      Math.abs(curr - parseInt(rawMin, 10)) < Math.abs(prev - parseInt(rawMin, 10)) ? curr : prev
+    );
+    const minStr = String(nearestMin).padStart(2, '0');
+
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+
+    document.getElementById('cutoff_hour').value   = String(h);
+    document.getElementById('cutoff_minute').value = minStr;
+    document.getElementById('cutoff_ampm').value   = ampm;
+  }
+
+  // Step 2: NOW sync hidden field and preview from the populated selects
+  updatePreview();
+
+  // Step 3: Listen for user changes
+  ['cutoff_hour', 'cutoff_minute', 'cutoff_ampm'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updatePreview);
+  });
+
+  // Step 4: Sync again on submit (belt-and-suspenders)
+  document.getElementById('settingsForm').addEventListener('submit', function () {
+    updatePreview();
+  });
+</script>
+{% endblock %}

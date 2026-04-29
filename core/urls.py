@@ -1,0 +1,44 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    path('login/', views.LoginView.as_view(), name='login'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────
+    path('', views.DashboardView.as_view(), name='dashboard'),
+    path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
+    path('reports/', views.ReportsView.as_view(), name='reports'),
+    path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('export/excel/', views.ExportExcelView.as_view(), name='export_excel'),
+    path('notify/', views.SendNotificationView.as_view(), name='send_notification'),
+
+    # ── Scanner (browser-based) ───────────────────────────────────────────────
+    path('scanner/', views.ScannerPageView.as_view(), name='scanner'),
+    path('scanner/process-frame/', views.ProcessFrameView.as_view(), name='process_frame'),
+
+    # ── Students CRUD ─────────────────────────────────────────────────────────
+    path('students/', views.StudentsView.as_view(), name='students'),
+    path('students/add/', views.StudentAddView.as_view(), name='student_add'),
+    path('students/import/', views.StudentImportView.as_view(), name='student_import'),
+    path('students/<str:student_id>/', views.StudentDetailView.as_view(), name='student_detail'),
+    path('students/<str:student_id>/edit/', views.StudentEditView.as_view(), name='student_edit'),
+    path('students/<str:student_id>/delete/', views.StudentDeleteView.as_view(), name='student_delete'),
+
+    # ── QR Generation ─────────────────────────────────────────────────────────
+    path('qr/generate/', views.QRGenerateView.as_view(), name='qr_generate'),
+    path('qr/download/<str:student_id>/', views.QRDownloadView.as_view(), name='qr_download'),
+    path('qr/download-all/', views.QRDownloadAllView.as_view(), name='qr_download_all'),
+
+    # ── Face Enrollment ────────────────────────────────────────────────────────
+    path('face/enroll/', views.FaceEnrollView.as_view(), name='face_enroll'),
+    path('face/enroll/<str:student_id>/', views.FaceEnrollStudentView.as_view(), name='face_enroll_student'),
+
+    # ── REST API (desktop scanner fallback) ───────────────────────────────────
+    path('api/attendance/mark/', views.APIMarkAttendance.as_view(), name='api_mark_attendance'),
+    path('api/attendance/today/<str:student_id>/', views.APITodayStatus.as_view(), name='api_today_status'),
+    path('api/students/', views.APIStudentList.as_view(), name='api_students'),
+    path('api/students/<str:student_id>/', views.APIStudentDetail.as_view(), name='api_student_detail'),
+    path('api/reports/daily/', views.APIDailyReport.as_view(), name='api_daily_report'),
+]

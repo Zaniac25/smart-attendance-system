@@ -1,0 +1,101 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Students — ABIT Attendance{% endblock %}
+{% block page_title %}Students{% endblock %}
+{% block page_subtitle %}Enrolled student database{% endblock %}
+
+{% block content %}
+
+<!-- Search -->
+<form method="GET" class="mb-6 flex gap-3">
+  <input type="text" name="q" value="{{ search }}"
+         placeholder="Search by name or ID..."
+         class="flex-1 max-w-sm border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+  <button type="submit"
+          class="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-900 transition-colors">
+    Search
+  </button>
+  {% if search %}
+  <a href="{% url 'students' %}" class="text-slate-500 hover:text-slate-800 text-sm py-2">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Students Table -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-6 py-3">Student ID</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Name</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Class</th>
+        <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Face</th>
+        <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">QR</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Attendance %</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students %}
+      <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+        <td class="px-6 py-3 font-mono text-slate-600 text-xs">{{ student.student_id }}</td>
+        <td class="px-4 py-3 font-medium text-slate-800">{{ student.name }}</td>
+        <td class="px-4 py-3 text-slate-500">{{ student.student_class }}</td>
+        <td class="px-4 py-3 text-center">
+          {% if student.face_enrolled %}
+            <span class="text-green-500 text-base">✓</span>
+          {% else %}
+            <span class="text-slate-300 text-base">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-center">
+          {% if student.qr_generated %}
+            <span class="text-green-500 text-base">✓</span>
+          {% else %}
+            <span class="text-slate-300 text-base">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% with pct=student.attendance_percentage %}
+          <div class="flex items-center gap-2">
+            <div class="w-20 bg-slate-100 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full {% if pct >= 75 %}bg-green-500{% elif pct >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
+                   style="width: {{ pct }}%"></div>
+            </div>
+            <span class="text-xs font-semibold {% if pct >= 75 %}text-green-600{% elif pct >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
+              {{ pct }}%
+            </span>
+          </div>
+          {% endwith %}
+        </td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <a href="{% url 'student_detail' student.student_id %}"
+               class="text-blue-600 hover:text-blue-800 text-xs font-medium">View</a>
+            <a href="{% url 'student_edit' student.student_id %}"
+               class="text-amber-600 hover:text-amber-800 text-xs font-medium">Edit</a>
+            <form method="POST" action="{% url 'student_delete' student.student_id %}"
+                  onsubmit="return confirm('Delete {{ student.name }}? This removes all their attendance records.')">
+              {% csrf_token %}
+              <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-medium">
+                Delete
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="px-6 py-12 text-center text-slate-400">
+          No students found{% if search %} for "{{ search }}"{% endif %}.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="mt-3 text-xs text-slate-400">
+  {{ students|length }} student{{ students|length|pluralize }} found
+</p>
+
+{% endblock %}
