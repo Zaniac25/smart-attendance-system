@@ -17,7 +17,7 @@ import json
 import zipfile
 import numpy as np
 from io import BytesIO
-from datetime import date, datetime
+from datetime import date, datetime, time as dt_time
 
 import qrcode
 import pandas as pd
@@ -58,8 +58,6 @@ try:
 except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _generate_qr_bytes(student):
     data = f"{student.student_id}|{student.name}|{student.student_class}"
@@ -141,9 +139,6 @@ def _verify_face(image_bytes, student_id, strict=False):
     return False, "Face does not match"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# AUTH
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class LoginView(View):
     def get(self, request):
@@ -167,10 +162,6 @@ class LogoutView(View):
         return redirect('login')
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# DASHBOARD
-# ═══════════════════════════════════════════════════════════════════════════════
-
 @method_decorator(login_required, name='dispatch')
 class DashboardView(View):
     def get(self, request):
@@ -188,9 +179,7 @@ class DashboardView(View):
         return render(request, 'dashboard/index.html', context)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# BROWSER SCANNER
-# ═══════════════════════════════════════════════════════════════════════════════
+
 
 @method_decorator(login_required, name='dispatch')
 class ScannerPageView(View):
@@ -220,7 +209,6 @@ class ProcessFrameView(View):
 
         image_bytes = frame_file.read()
 
-        # ── Mode 1: QR decode only ────────────────────────────────────────────
         if mode == 'qr_only':
             qr_results = _decode_qr_from_bytes(image_bytes)
             if not qr_results:
@@ -255,7 +243,7 @@ class ProcessFrameView(View):
                 'student_class': student.student_class,
             })
 
-        # ── Mode 2: Face verify + mark ────────────────────────────────────────
+    
         if mode == 'face_and_mark':
             student_id = request.POST.get('student_id', '').strip()
             if not student_id:
@@ -327,10 +315,6 @@ class ProcessFrameView(View):
         return JsonResponse({'status': 'error', 'message': 'Invalid mode'}, status=400)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# REPORTS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 @method_decorator(login_required, name='dispatch')
 class ReportsView(View):
     def get(self, request):
@@ -401,10 +385,6 @@ class SendNotificationView(View):
             target_date = timezone.localdate()
         return JsonResponse({'success': send_daily_absent_report(target_date)})
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# STUDENTS CRUD
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @method_decorator(login_required, name='dispatch')
 class StudentsView(View):
@@ -536,9 +516,6 @@ class StudentImportView(View):
         })
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# QR GENERATION
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @method_decorator(login_required, name='dispatch')
 class QRGenerateView(View):
@@ -623,21 +600,20 @@ class IDCardDownloadView(View):
 
         student = get_object_or_404(Student, student_id=student_id)
 
-        # ── Card dimensions ────────────────────────────────────────────────────
+        # Card dimensions
         CARD_W, CARD_H = 800, 320
-        PADDING        = 24
-        FACE_SIZE      = 220   # square face crop
-        QR_SIZE        = 220   # QR code size
-        BG_COLOR       = (255, 255, 255)
-        PRIMARY        = (30,  58,  95)   # dark blue
-        TEXT_DARK      = (31,  41,  55)
-        TEXT_GRAY      = (107, 114, 128)
-        ACCENT         = (232, 160, 32)   # yellow
+        PADDING = 24
+        FACE_SIZE = 220   # square face crop
+        QR_SIZE = 220   # QR code size
+        BG_COLOR = (255, 255, 255)
+        PRIMARY = (30,  58,  95)   # dark blue
+        TEXT_DARK = (31,  41,  55)
+        TEXT_GRAY = (107, 114, 128)
+        ACCENT = (232, 160, 32)   # yellow
 
         card = Image.new('RGB', (CARD_W, CARD_H), BG_COLOR)
         draw = ImageDraw.Draw(card)
 
-        # ── Header bar ────────────────────────────────────────────────────────
         draw.rectangle([0, 0, CARD_W, 48], fill=PRIMARY)
 
         # Try to load a font; fall back to default if not available
@@ -652,7 +628,7 @@ class IDCardDownloadView(View):
 
         draw.text((PADDING, 14), "ABIT — Student Attendance Card", font=font_title, fill=(255, 255, 255))
 
-        # ── Face photo ────────────────────────────────────────────────────────
+        # Face photo 
         face_x, face_y = PADDING, 60
         faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
         face_path = os.path.join(faces_dir, f'{student_id}.jpg')
@@ -673,7 +649,6 @@ class IDCardDownloadView(View):
             draw.text((face_x + 55, face_y + 90), "No Face\nEnrolled",
                       font=font_detail, fill=TEXT_GRAY, align='center')
 
-        # ── QR code ───────────────────────────────────────────────────────────
         qr_bytes = _generate_qr_bytes(student)
         qr_img   = Image.open(BytesIO(qr_bytes)).convert('RGB')
         qr_img   = qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS)
@@ -685,7 +660,6 @@ class IDCardDownloadView(View):
         )
         card.paste(qr_img, (qr_x, qr_y))
 
-        # ── Student info (centre column) ──────────────────────────────────────
         info_x = face_x + FACE_SIZE + PADDING
         info_w = qr_x - info_x - PADDING
 
@@ -720,14 +694,14 @@ class IDCardDownloadView(View):
         draw.text((info_x, y_cursor + 6), "Scan QR to mark attendance",
                   font=font_small, fill=TEXT_GRAY)
 
-        # ── Bottom bar ────────────────────────────────────────────────────────
+
         draw.rectangle([0, CARD_H - 28, CARD_W, CARD_H], fill=(248, 250, 252))
         draw.line([0, CARD_H - 28, CARD_W, CARD_H - 28], fill=(226, 232, 240), width=1)
         draw.text((PADDING, CARD_H - 20),
                   "Ajay Binay Institute of Technology — Attendance System",
                   font=font_small, fill=TEXT_GRAY)
 
-        # ── Serve as PNG download ─────────────────────────────────────────────
+        
         out_buf = BytesIO()
         card.save(out_buf, format='PNG', dpi=(150, 150))
         out_buf.seek(0)
@@ -760,10 +734,6 @@ class IDCardDownloadAllView(View):
         response['Content-Disposition'] = 'attachment; filename="all_id_cards.zip"'
         return response
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SETTINGS
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @method_decorator(login_required, name='dispatch')
 class SettingsView(View):
@@ -798,10 +768,6 @@ class SettingsView(View):
             'success': f'Settings saved! Late cutoff: {saved_display}'
         })
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FACE ENROLLMENT
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def _get_encodings_path():
     """Find face_encodings.pkl — check root then desktop/ subfolder."""
@@ -908,7 +874,6 @@ class FaceEnrollStudentView(View):
 
         encoding = encodings_list[0]
 
-        # ── Save cropped face image to media/student_faces/<id>.jpg ──────────
         top, right, bottom, left = locations[0]
         # Add 30% padding around detected face box
         h_img, w_img = frame.shape[:2]
@@ -928,7 +893,7 @@ class FaceEnrollStudentView(View):
         face_path = os.path.join(faces_dir, f'{student_id}.jpg')
         cv2.imwrite(face_path, face_thumb)
 
-        # ── Save encoding ────────────────────────────────────────────────────
+       
         encodings = _load_encodings()
         encodings[student_id] = {'name': student.name, 'encoding': encoding}
         _save_encodings(encodings)
@@ -946,9 +911,210 @@ class FaceEnrollStudentView(View):
         })
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# REST API
-# ═══════════════════════════════════════════════════════════════════════════════
+@method_decorator(login_required, name='dispatch')
+class ManualAttendanceView(View):
+    """
+    GET  — show all students for a date with their current attendance status
+    POST — save checked students as present, remove unchecked if they exist
+    """
+    def get(self, request):
+        date_str = request.GET.get('date', datetime.now().strftime('%Y-%m-%d'))
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            target_date = datetime.now().date()
+
+        students = Student.objects.all().order_by('student_class', 'name')
+
+        # Fetch existing attendance for this date keyed by student_id
+        existing = {
+            a.student.student_id: a
+            for a in Attendance.objects.filter(date=target_date).select_related('student')
+        }
+
+        # Build combined list with status
+        rows = []
+        for student in students:
+            record = existing.get(student.student_id)
+            rows.append({
+                'student': student,
+                'record': record,
+                'is_present': record is not None,
+                'time_str': record.time.strftime('%H:%M') if record else datetime.now().strftime('%H:%M'),
+                'is_manual': record.is_manual if record else True,
+            })
+
+        all_classes = Student.objects.values_list(
+            'student_class', flat=True).distinct().order_by('student_class')
+
+        return render(request, 'dashboard/manual_attendance.html', {
+            'rows': rows,
+            'date_str': date_str,
+            'target_date': target_date,
+            'all_classes': all_classes,
+            'existing_count': len(existing),
+        })
+
+    def post(self, request):
+        date_str = request.POST.get('date', datetime.now().strftime('%Y-%m-%d'))
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid date'}, status=400)
+
+        # present_ids: student IDs checked as present
+        present_ids = set(request.POST.getlist('present_ids'))
+
+        # time per student (format: HH:MM)
+        created, updated, removed = 0, 0, 0
+        errors = []
+
+        all_students = Student.objects.all()
+
+        for student in all_students:
+            sid = student.student_id
+            time_key = f'time_{sid}'
+            raw_time = request.POST.get(time_key, datetime.now().strftime('%H:%M')).strip()
+
+            try:
+                h, m = map(int, raw_time.split(':'))
+                entry_time = dt_time(h, m)
+            except Exception:
+                entry_time = datetime.now().time()
+
+            existing = Attendance.objects.filter(student=student, date=target_date).first()
+
+            if sid in present_ids:
+                if existing:
+                    # Update time and mark as manual
+                    existing.time = entry_time
+                    existing.is_manual = True
+                    existing.save()
+                    updated += 1
+                else:
+                    Attendance.objects.create(
+                        student=student,
+                        date=target_date,
+                        time=entry_time,
+                        is_manual=True,
+                    )
+                    created += 1
+            else:
+                # Not checked — remove if exists
+                if existing:
+                    existing.delete()
+                    removed += 1
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Saved — {created} added, {updated} updated, {removed} removed',
+            'created': created, 'updated': updated, 'removed': removed,
+        })
+
+
+@method_decorator(login_required, name='dispatch')
+class AttendanceEditView(View):
+    """Edit a single attendance record's time."""
+    def post(self, request, record_id):
+        record = get_object_or_404(Attendance, id=record_id)
+        raw_time = request.POST.get('time', '').strip()
+        try:
+            h, m = map(int, raw_time.split(':'))
+            record.time = dt_time(h, m)
+            record.is_manual = True
+            record.save()
+            return JsonResponse({'success': True, 'time': record.time.strftime('%I:%M %p'),
+                                 'is_late': record.is_late})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@method_decorator(login_required, name='dispatch')
+class AttendanceDeleteView(View):
+    """Delete a single attendance record."""
+    def post(self, request, record_id):
+        record = get_object_or_404(Attendance, id=record_id)
+        student_name = record.student.name
+        record.delete()
+        return JsonResponse({'success': True, 'message': f'Removed attendance for {student_name}'})
+
+
+@method_decorator(login_required, name='dispatch')
+class AttendanceUploadView(View):
+    """
+    Upload a CSV to bulk-mark attendance for a specific date.
+    CSV format: StudentID, Date (YYYY-MM-DD), Time (HH:MM) — Time is optional.
+    """
+    def get(self, request):
+        return render(request, 'dashboard/attendance_upload.html')
+
+    def post(self, request):
+        csv_file = request.FILES.get('csv_file')
+        if not csv_file or not csv_file.name.endswith('.csv'):
+            return render(request, 'dashboard/attendance_upload.html',
+                          {'error': 'Please upload a valid .csv file.'})
+
+        decoded = csv_file.read().decode('utf-8')
+        reader = csv.DictReader(io.StringIO(decoded))
+
+        fieldnames = [f.strip() for f in (reader.fieldnames or [])]
+        if 'StudentID' not in fieldnames or 'Date' not in fieldnames:
+            return render(request, 'dashboard/attendance_upload.html', {
+                'error': 'CSV must have at least: StudentID, Date columns'
+            })
+
+        created, updated, skipped, row_errors = 0, 0, 0, []
+
+        for i, row in enumerate(reader, 2):
+            sid       = row.get('StudentID', '').strip()
+            date_str  = row.get('Date', '').strip()
+            time_str  = row.get('Time', '').strip() or datetime.now().strftime('%H:%M')
+
+            if not sid or not date_str:
+                row_errors.append(f'Row {i}: missing StudentID or Date — skipped')
+                skipped += 1
+                continue
+
+            try:
+                target_date = date.fromisoformat(date_str)
+            except ValueError:
+                row_errors.append(f'Row {i}: invalid date "{date_str}" — use YYYY-MM-DD')
+                skipped += 1
+                continue
+
+            try:
+                parts = time_str.split(':')
+                entry_time = dt_time(int(parts[0]), int(parts[1]))
+            except Exception:
+                entry_time = datetime.now().time()
+
+            try:
+                student = Student.objects.get(student_id=sid)
+            except Student.DoesNotExist:
+                row_errors.append(f'Row {i}: student ID "{sid}" not found — skipped')
+                skipped += 1
+                continue
+
+            existing = Attendance.objects.filter(student=student, date=target_date).first()
+            if existing:
+                existing.time = entry_time
+                existing.is_manual = True
+                existing.save()
+                updated += 1
+            else:
+                Attendance.objects.create(
+                    student=student, date=target_date,
+                    time=entry_time, is_manual=True,
+                )
+                created += 1
+
+        return render(request, 'dashboard/attendance_upload.html', {
+            'result': {
+                'created': created, 'updated': updated,
+                'skipped': skipped, 'errors': row_errors,
+            }
+        })
+
 
 class APIMarkAttendance(APIView):
     permission_classes = [AllowAny]
