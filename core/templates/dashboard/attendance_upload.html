@@ -1,0 +1,203 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Upload Attendance — ABIT{% endblock %}
+{% block page_title %}Upload Attendance CSV{% endblock %}
+{% block page_subtitle %}Bulk-mark attendance for any date by uploading a CSV file{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-6">
+
+  <!-- Format guide -->
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="bg-primary px-6 py-4">
+      <h3 class="text-white font-semibold">📋 Required CSV Format</h3>
+      <p class="text-blue-300 text-xs mt-0.5">Only present students need to be listed</p>
+    </div>
+    <div class="p-6 space-y-4">
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="text-left px-4 py-2.5 text-slate-600 font-semibold border-b border-slate-200">Column</th>
+              <th class="text-left px-4 py-2.5 text-slate-600 font-semibold border-b border-slate-200">Required</th>
+              <th class="text-left px-4 py-2.5 text-slate-600 font-semibold border-b border-slate-200">Format</th>
+              <th class="text-left px-4 py-2.5 text-slate-600 font-semibold border-b border-slate-200">Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-slate-100">
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">StudentID</td>
+              <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">Required</span></td>
+              <td class="px-4 py-2.5 text-slate-600">Student's ID number</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">220</td>
+            </tr>
+            <tr class="border-b border-slate-100">
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Date</td>
+              <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">Required</span></td>
+              <td class="px-4 py-2.5 text-slate-600">YYYY-MM-DD</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">2026-04-30</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Time</td>
+              <td class="px-4 py-2.5"><span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full font-medium">Optional</span></td>
+              <td class="px-4 py-2.5 text-slate-600">HH:MM (24-hour)</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">09:15</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Sample -->
+      <div>
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Sample CSV</p>
+        <pre class="bg-slate-900 text-green-400 rounded-xl px-5 py-4 text-xs font-mono overflow-x-auto leading-relaxed">StudentID,Date,Time
+220,2026-04-30,09:10
+221,2026-04-30,09:05
+143,2026-04-30,09:30
+148,2026-04-30,10:15</pre>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div class="flex items-start gap-2 text-slate-600">
+          <span class="text-green-500 font-bold flex-shrink-0">✓</span>
+          Only list <b>present</b> students — absent students are inferred
+        </div>
+        <div class="flex items-start gap-2 text-slate-600">
+          <span class="text-green-500 font-bold flex-shrink-0">✓</span>
+          If a record already exists it will be <b>updated</b>
+        </div>
+        <div class="flex items-start gap-2 text-slate-600">
+          <span class="text-green-500 font-bold flex-shrink-0">✓</span>
+          Time defaults to current time if omitted
+        </div>
+        <div class="flex items-start gap-2 text-slate-600">
+          <span class="text-amber-500 font-bold flex-shrink-0">⚠</span>
+          StudentID must match exactly what's in the database
+        </div>
+      </div>
+
+      <!-- Template download -->
+      <a href="data:text/csv;charset=utf-8,StudentID%2CDate%2CTime%0A220%2C2026-04-30%2C09%3A00"
+         download="attendance_template.csv"
+         class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700
+                text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Download Blank Template (.csv)
+      </a>
+    </div>
+  </div>
+
+  <!-- Upload form -->
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+    <h3 class="font-semibold text-slate-800 mb-5">Upload Attendance File</h3>
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-5 text-sm">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="space-y-4">
+      <h4 class="font-semibold text-slate-700">Import Complete</h4>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="text-center bg-green-50 border border-green-200 rounded-xl p-4">
+          <p class="text-3xl font-bold text-green-600">{{ result.created }}</p>
+          <p class="text-xs text-green-700 font-medium mt-1">Records Added</p>
+        </div>
+        <div class="text-center bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="text-3xl font-bold text-blue-600">{{ result.updated }}</p>
+          <p class="text-xs text-blue-700 font-medium mt-1">Records Updated</p>
+        </div>
+        <div class="text-center bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <p class="text-3xl font-bold text-slate-500">{{ result.skipped }}</p>
+          <p class="text-xs text-slate-500 font-medium mt-1">Skipped</p>
+        </div>
+      </div>
+
+      {% if result.errors %}
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-xs font-semibold text-yellow-800 mb-2">⚠ Row Warnings:</p>
+        {% for e in result.errors %}
+        <p class="text-xs text-yellow-700 font-mono py-0.5">{{ e }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="flex gap-3 pt-2">
+        <a href="{% url 'reports' %}"
+           class="flex-1 text-center bg-primary hover:bg-blue-900 text-white font-semibold
+                  py-2.5 rounded-lg text-sm transition-colors">View Reports →</a>
+        <a href="{% url 'attendance_upload' %}"
+           class="flex-1 text-center bg-slate-100 hover:bg-slate-200 text-slate-700
+                  font-semibold py-2.5 rounded-lg text-sm transition-colors">Upload Another</a>
+      </div>
+    </div>
+
+    {% else %}
+
+    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+      {% csrf_token %}
+      <div id="dropZone"
+           onclick="document.getElementById('csv_file').click()"
+           class="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center
+                  hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer group">
+
+        <div class="w-16 h-16 bg-slate-100 group-hover:bg-blue-100 rounded-2xl
+                    flex items-center justify-center mx-auto mb-4 transition-colors">
+          <svg class="w-8 h-8 text-slate-400 group-hover:text-blue-500 transition-colors"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+
+        <p class="font-semibold text-slate-700 text-lg">Click to choose CSV file</p>
+        <p class="text-slate-400 text-sm mt-1">or drag and drop here</p>
+
+        <div id="fileChosen" class="hidden mt-4 inline-flex items-center gap-2 bg-blue-100
+                                    text-blue-800 px-4 py-2 rounded-full text-sm font-medium">
+          <span id="fileNameDisplay"></span>
+        </div>
+        <p class="text-slate-400 text-xs mt-3">Accepted: <strong>.csv</strong> only</p>
+        <input type="file" name="csv_file" id="csv_file" accept=".csv"
+               class="hidden" onchange="handleFile(this)"/>
+      </div>
+
+      <button type="submit" id="submitBtn" disabled
+              class="w-full mt-4 bg-primary hover:bg-blue-900 text-white font-semibold
+                     py-3 rounded-xl transition-colors text-sm shadow-md
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+        Upload &amp; Mark Attendance
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function handleFile(input) {
+    if(input.files.length > 0) {
+      document.getElementById('fileNameDisplay').textContent = '📄 ' + input.files[0].name;
+      document.getElementById('fileChosen').classList.remove('hidden');
+      document.getElementById('submitBtn').disabled = false;
+    }
+  }
+  const dz = document.getElementById('dropZone');
+  const fi = document.getElementById('csv_file');
+  if(dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('border-blue-400'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('border-blue-400'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('border-blue-400');
+      if(e.dataTransfer.files.length) { fi.files = e.dataTransfer.files; handleFile(fi); }
+    });
+  }
+</script>
+{% endblock %}

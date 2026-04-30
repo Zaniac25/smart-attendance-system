@@ -90,22 +90,51 @@
             <th class="text-left pb-2 pr-3">Name</th>
             <th class="text-left pb-2 pr-3">Class</th>
             <th class="text-left pb-2">Time</th>
+            <th class="text-left pb-2">Source</th>
+            <th class="text-left pb-2">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for r in report.present_students %}
-          <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <tr class="border-b border-slate-50 hover:bg-slate-50" id="rec-{{ r.id }}">
             <td class="py-2 pr-3 font-mono text-slate-600 text-xs">{{ r.student.student_id }}</td>
             <td class="py-2 pr-3 font-medium">
-              <a href="{% url 'student_detail' r.student.student_id %}" class="hover:text-blue-600 transition-colors">
+              <a href="{% url 'student_detail' r.student.student_id %}" class="hover:text-blue-600">
                 {{ r.student.name }}
               </a>
             </td>
             <td class="py-2 pr-3 text-slate-500">{{ r.student.student_class }}</td>
-            <td class="py-2">
-              <span class="{% if r.is_late %}text-yellow-600 font-medium{% else %}text-slate-600{% endif %}">
-                {{ r.time|time:"H:i" }}{% if r.is_late %} ⚠{% endif %}
+            <td class="py-2 pr-3">
+              <span id="time-display-{{ r.id }}"
+                    class="{% if r.is_late %}text-yellow-600 font-medium{% else %}text-slate-600{% endif %}">
+                {{ r.time|time:"g:i A" }}{% if r.is_late %} ⚠{% endif %}
               </span>
+            </td>
+            <td class="py-2 pr-3">
+              {% if r.is_manual %}
+                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Manual</span>
+              {% else %}
+                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Scanner</span>
+              {% endif %}
+            </td>
+            <td class="py-2">
+              <div class="flex items-center gap-2">
+                <!-- Edit time inline -->
+                <div class="flex items-center gap-1" id="edit-form-{{ r.id }}" style="display:none!important">
+                  <input type="time" id="edit-time-{{ r.id }}"
+                         value="{{ r.time|time:'H:i' }}"
+                         class="border border-slate-300 rounded px-2 py-0.5 text-xs w-24"/>
+                  <button onclick="saveEdit({{ r.id }})"
+                          class="text-green-600 hover:text-green-800 text-xs font-semibold">Save</button>
+                  <button onclick="cancelEdit({{ r.id }})"
+                          class="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                </div>
+                <button onclick="startEdit({{ r.id }})"
+                        id="edit-btn-{{ r.id }}"
+                        class="text-amber-500 hover:text-amber-700 text-xs font-medium">Edit</button>
+                <button onclick="deleteAttendance({{ r.id }}, '{{ r.student.student_id }}')"
+                        class="text-red-400 hover:text-red-600 text-xs font-medium">Delete</button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -229,27 +258,58 @@
 
     fetch('{% url "send_notification" %}', {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': '{{ csrf_token }}',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'date={{ date_str }}',
     })
     .then(r => r.json())
     .then(data => {
-      if (data.success) {
-        status.innerHTML = '<span class="text-green-600 font-medium">✓ Email sent!</span>';
-      } else {
-        status.innerHTML = '<span class="text-red-500">Failed — check email settings.</span>';
-      }
+      status.innerHTML = data.success
+        ? '<span class="text-green-600 font-medium">✓ Email sent!</span>'
+        : '<span class="text-red-500">Failed — check email settings.</span>';
     })
-    .catch(() => {
-      status.innerHTML = '<span class="text-red-500">Network error.</span>';
-    })
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = 'Send Absent Email';
-    });
+    .catch(() => { status.innerHTML = '<span class="text-red-500">Network error.</span>'; })
+    .finally(() => { btn.disabled = false; btn.textContent = 'Send Absent Email'; });
+  }
+
+
+  function startEdit(id) {
+    document.getElementById(`edit-btn-${id}`).style.display = 'none';
+    document.getElementById(`edit-form-${id}`).style.display = 'flex';
+  }
+
+  function cancelEdit(id) {
+    document.getElementById(`edit-btn-${id}`).style.display = '';
+    document.getElementById(`edit-form-${id}`).style.display = 'none!important';
+  }
+
+  async function saveEdit(id) {
+    const timeVal = document.getElementById(`edit-time-${id}`).value;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    fd.append('time', timeVal);
+
+    const resp = await fetch(`/attendance/${id}/edit/`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if(data.success) {
+      const span = document.getElementById(`time-display-${id}`);
+      span.textContent = data.time + (data.is_late ? ' ⚠' : '');
+      span.className   = data.is_late ? 'text-yellow-600 font-medium' : 'text-slate-600';
+      cancelEdit(id);
+    } else {
+      alert('Error: ' + data.message);
+    }
+  }
+
+  
+  async function deleteAttendance(id, sid) {
+    if(!confirm('Delete this attendance record?')) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    const resp = await fetch(`/attendance/${id}/delete/`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if(data.success) {
+      document.getElementById(`rec-${id}`)?.remove();
+    }
   }
 </script>
 {% endblock %}
