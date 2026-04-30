@@ -54,31 +54,24 @@ class Attendance(models.Model):
     date = models.DateField(db_index=True)
     time = models.TimeField()
     is_late = models.BooleanField(default=False)
-    marked_at = models.DateTimeField(auto_now_add=True)  # Server timestamp
+    is_manual = models.BooleanField(default=False)  # True = marked by admin, False = scanner
+    marked_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('student', 'date')  # DB-level duplicate prevention
+        unique_together = ('student', 'date')
         ordering = ['-date', 'time']
         verbose_name = 'Attendance Record'
         verbose_name_plural = 'Attendance Records'
 
     def __str__(self):
         status = " [LATE]" if self.is_late else ""
-        return f"{self.student.name} — {self.date}{status}"
+        source = " [MANUAL]" if self.is_manual else ""
+        return f"{self.student.name} — {self.date}{status}{source}"
 
     def save(self, *args, **kwargs):
-        """
-        Compute is_late from AttendanceSettings DB row (respects dashboard changes).
-        Falls back to settings.LATE_ARRIVAL_CUTOFF string if DB row absent.
-        self.time must be local time before calling save().
-        """
         try:
             config = AttendanceSettings.objects.filter(pk=1).first()
-            if config:
-                cutoff = config.late_cutoff_time
-            else:
-                h, m = map(int, settings.LATE_ARRIVAL_CUTOFF.split(':'))
-                cutoff = time(h, m)
+            cutoff = config.late_cutoff_time if config else time(9, 30)
             self.is_late = self.time > cutoff
         except Exception:
             self.is_late = False
