@@ -8,7 +8,7 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-  <!-- ── Camera Panel ─────────────────────────────────────────────────────── -->
+
   <div class="lg:col-span-2 space-y-4">
 
     <!-- Phase indicator -->
@@ -136,7 +136,7 @@
     <canvas id="captureCanvas" class="hidden"></canvas>
   </div>
 
-  <!-- ── Right Panel ──────────────────────────────────────────────────────── -->
+
   <div class="space-y-4">
 
     <!-- Progress -->
@@ -199,16 +199,16 @@
 
 {% block extra_js %}
 <script>
-const CSRF        = '{{ csrf_token }}';
+const CSRF = '{{ csrf_token }}';
 const PROCESS_URL = '{% url "process_frame" %}';
 
-let phase        = 'idle';
-let stream       = null;
-let qrTimer      = null;
-let faceTimer    = null;
-let countdown    = null;
+let phase = 'idle';
+let stream = null;
+let qrTimer = null;
+let faceTimer = null;
+let countdown = null;
 let presentCount = 0;
-let secsLeft     = 10;
+let secsLeft = 10;
 
 const video   = document.getElementById('video');
 const capture = document.getElementById('captureCanvas');
@@ -224,7 +224,7 @@ fetch('/api/reports/daily/').then(r=>r.json()).then(d=>{
 
 function updateBar(p,t){ document.getElementById('progressBar').style.width = t>0?Math.round(p/t*100)+'%':'0%'; }
 
-// ── Controls ─────────────────────────────────────────────────────────────────
+
 async function startScanner(){
   try {
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280}}});
@@ -255,7 +255,7 @@ function killTimers(){
   qrTimer=faceTimer=countdown=null;
 }
 
-// ── Phase 1: QR Only ─────────────────────────────────────────────────────────
+
 function enterQR(){
   killTimers();
   phase = 'qr';
@@ -268,7 +268,7 @@ function enterQR(){
   qrTimer = setInterval(sendFrame.bind(null,'qr_only',null), 600);
 }
 
-// ── Phase 2: Face Only ────────────────────────────────────────────────────────
+
 function enterFace(studentData){
   killTimers();
   phase = 'face';
@@ -297,7 +297,7 @@ function enterFace(studentData){
   faceTimer = setInterval(sendFrame.bind(null,'face_and_mark', studentData.student_id), 800);
 }
 
-// ── Frame sender ──────────────────────────────────────────────────────────────
+
 async function sendFrame(mode, studentId){
   if(!video.videoWidth) return;
   capture.width  = video.videoWidth;
@@ -321,7 +321,7 @@ async function sendFrame(mode, studentId){
   } catch(e){ console.error(e); }
 }
 
-// ── Result handlers ───────────────────────────────────────────────────────────
+
 function handleQR(data){
   if(data.status === 'no_qr' || data.status === 'no_frame') return;
 
@@ -370,9 +370,14 @@ function handleFace(data){
     addLog('error', data.student_name+' — not enrolled', data.student_class, null, false);
     setTimeout(enterQR, 3000);
   }
+  if(data.status === 'outside_window'){
+    flash('⏰', '', '', data.message, 'orange');
+    addLog('error', data.message, '', null, false);
+    setTimeout(stopScanner, 3000);
+  }
 }
 
-// ── Phase UI ─────────────────────────────────────────────────────────────────
+
 function setPhaseUI(p){
   const i1 = document.getElementById('phase1Indicator');
   const i2 = document.getElementById('phase2Indicator');
@@ -389,7 +394,7 @@ function setPhaseUI(p){
   }
 }
 
-// ── Banner ────────────────────────────────────────────────────────────────────
+
 function setBanner(type, text){
   const el   = document.getElementById('instructionBanner');
   const dot  = document.getElementById('bannerDot');
@@ -407,7 +412,7 @@ function setBanner(type, text){
   span.textContent = text;
 }
 
-// ── Flash overlay ─────────────────────────────────────────────────────────────
+
 function flash(icon, name, cls, msg, color){
   const overlay = document.getElementById('resultFlash');
   const card    = document.getElementById('resultCard');
@@ -428,7 +433,7 @@ function flash(icon, name, cls, msg, color){
   setTimeout(()=>{ overlay.style.opacity='0'; overlay.style.background='transparent'; }, 2200);
 }
 
-// ── Log ───────────────────────────────────────────────────────────────────────
+
 function addLog(type, name, cls, time, isLate){
   const log = document.getElementById('scanLog');
   log.querySelector('.italic')?.remove();
