@@ -83,9 +83,18 @@ class AttendanceSettings(models.Model):
     Singleton model for system-wide configuration.
     Only one row should ever exist — enforced in save().
     """
+    # Attendance window — scanner only marks within this range
+    attendance_start_time = models.TimeField(
+        default=time(8, 0),
+        help_text="Attendance marking opens at this time"
+    )
+    attendance_end_time = models.TimeField(
+        default=time(11, 0),
+        help_text="Attendance marking closes at this time"
+    )
     late_cutoff_time = models.TimeField(
         default=time(9, 30),
-        help_text="Attendance marked after this time is flagged as late"
+        help_text="Attendance marked after this time (but before end) is flagged as late"
     )
     notification_email = models.EmailField(
         blank=True,
