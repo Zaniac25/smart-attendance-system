@@ -1,4 +1,5 @@
 {% extends "dashboard/base.html" %}
+{% load dict_extras %}
 
 {% block title %}Settings — ABIT Attendance{% endblock %}
 {% block page_title %}System Settings{% endblock %}
@@ -8,7 +9,7 @@
 
 {% if success %}
 <div class="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 mb-6 flex items-center gap-2 text-sm">
-  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+  <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
   </svg>
   {{ success }}
@@ -17,78 +18,149 @@
 
 <form method="POST" id="settingsForm">
   {% csrf_token %}
-  <!-- Hidden field that JS fills with HH:MM before submit -->
-  <input type="hidden" name="late_cutoff_time" id="late_cutoff_time_hidden" />
+  <!-- Hidden fields — JS fills HH:MM before submit -->
+  <input type="hidden" name="attendance_start_time" id="start_hidden" />
+  <input type="hidden" name="attendance_end_time"   id="end_hidden" />
+  <input type="hidden" name="late_cutoff_time"      id="late_hidden" />
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="space-y-6">
 
-    <!-- Attendance Rules -->
+
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-      <h3 class="font-semibold text-slate-800 mb-1">Attendance Rules</h3>
-      <p class="text-slate-500 text-xs mb-5">Configure late arrival detection</p>
+      <h3 class="font-semibold text-slate-800 mb-1">Attendance Window</h3>
+      <p class="text-slate-500 text-xs mb-6">
+        Scanner only accepts attendance between <b>Start</b> and <b>End</b>.
+        Anything before Start or after End is <b>rejected</b>.
+        Arrivals after <b>Late Cutoff</b> (but before End) are flagged late.
+      </p>
 
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-2">
-          Late Arrival Cutoff Time
-        </label>
+      <!-- Visual timeline -->
+      <div class="relative mb-8">
+        <div class="h-3 bg-slate-100 rounded-full overflow-hidden flex">
+          <div class="bg-blue-200 flex-1"></div>
+          <div class="bg-green-400 flex-1"></div>
+          <div class="bg-yellow-400 flex-1"></div>
+          <div class="bg-slate-200 flex-1"></div>
+        </div>
+        <div class="flex justify-between text-xs text-slate-400 mt-1">
+          <span>Rejected</span>
+          <span class="text-green-600 font-medium">On Time ✓</span>
+          <span class="text-yellow-600 font-medium">Late ⚠</span>
+          <span>Rejected</span>
+        </div>
+      </div>
 
-        <!-- AM/PM picker -->
-        <div class="flex items-center gap-2">
-          <!-- Hour -->
-          <select id="cutoff_hour"
-        class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
-  <option value="1">1</option>
-  <option value="2">2</option>
-  <option value="3">3</option>
-  <option value="4">4</option>
-  <option value="5">5</option>
-  <option value="6">6</option>
-  <option value="7">7</option>
-  <option value="8">8</option>
-  <option value="9">9</option>
-  <option value="10">10</option>
-  <option value="11">11</option>
-  <option value="12">12</option>
-</select>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-          <span class="text-slate-500 font-bold">:</span>
-
-          <!-- Minute -->
-          <select id="cutoff_minute"
-                  class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
-            <option value="00">00</option>
-            <option value="15">15</option>
-            <option value="30">30</option>
-            <option value="45">45</option>
-          </select>
-
-          <!-- AM/PM -->
-          <select id="cutoff_ampm"
-                  class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20">
-            <option value="AM">AM</option>
-            <option value="PM">PM</option>
-          </select>
+        <!-- Start time -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-green-400 inline-block"></span>
+            Attendance Opens
+          </label>
+          <div class="flex items-center gap-1.5">
+            <select id="start_hour" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              {% for h in "1,2,3,4,5,6,7,8,9,10,11,12"|split:"," %}
+              <option value="{{ h }}">{{ h }}</option>
+              {% endfor %}
+            </select>
+            <span class="text-slate-400 font-bold">:</span>
+            <select id="start_minute" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+            <select id="start_ampm" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <p class="text-xs text-slate-400">Currently: <span class="font-semibold text-slate-600">{{ config.attendance_start_time|time:"g:i A" }}</span></p>
         </div>
 
-        <p id="cutoffPreview" class="text-blue-600 text-xs font-medium mt-2"></p>
-        <p class="text-slate-400 text-xs mt-1">
-          Attendance marked after this time is flagged as <span class="text-yellow-600 font-medium">Late</span>
-        </p>
+        <!-- Late cutoff -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span>
+            Late After
+          </label>
+          <div class="flex items-center gap-1.5">
+            <select id="late_hour" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              {% for h in "1,2,3,4,5,6,7,8,9,10,11,12"|split:"," %}
+              <option value="{{ h }}">{{ h }}</option>
+              {% endfor %}
+            </select>
+            <span class="text-slate-400 font-bold">:</span>
+            <select id="late_minute" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+            <select id="late_ampm" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <p class="text-xs text-slate-400">Currently: <span class="font-semibold text-slate-600">{{ config.late_cutoff_time|time:"g:i A" }}</span></p>
+        </div>
 
-        <!-- Current saved value display -->
-        <p class="text-slate-500 text-xs mt-2">
-          Currently saved:
-          <span class="font-semibold text-slate-700">{{ config.late_cutoff_time|time:"g:i A" }}</span>
-        </p>
+        <!-- End time -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+            Attendance Closes
+          </label>
+          <div class="flex items-center gap-1.5">
+            <select id="end_hour" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              {% for h in "1,2,3,4,5,6,7,8,9,10,11,12"|split:"," %}
+              <option value="{{ h }}">{{ h }}</option>
+              {% endfor %}
+            </select>
+            <span class="text-slate-400 font-bold">:</span>
+            <select id="end_minute" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+            <select id="end_ampm" onchange="syncAll()"
+                    class="border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <p class="text-xs text-slate-400">Currently: <span class="font-semibold text-slate-600">{{ config.attendance_end_time|time:"g:i A" }}</span></p>
+        </div>
+
+      </div>
+
+      <!-- Live preview -->
+      <div id="windowPreview"
+           class="mt-5 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700">
+      </div>
+
+      <!-- Validation warning -->
+      <div id="windowWarning"
+           class="hidden mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 font-medium">
       </div>
     </div>
 
-    <!-- Email Notifications -->
+
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
       <h3 class="font-semibold text-slate-800 mb-1">Email Notifications</h3>
       <p class="text-slate-500 text-xs mb-5">Daily absent report via Gmail</p>
 
-      <div class="space-y-4">
+      <div class="space-y-4 max-w-md">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1.5">Recipient Email</label>
           <input type="email" name="notification_email"
@@ -108,29 +180,28 @@
         </div>
       </div>
     </div>
-  </div>
 
-  
-
-  <!-- Gmail SMTP -->
-  <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mt-4 text-sm text-blue-800">
-    <h4 class="font-semibold mb-2">📧 Gmail SMTP Setup (one-time)</h4>
-    <p class="mb-2">Set these environment variables before running Django:</p>
-    <pre class="bg-blue-100 rounded-lg p-3 text-xs font-mono overflow-x-auto">export EMAIL_HOST_USER="your_gmail@gmail.com"
+    <!-- Gmail SMTP -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800">
+      <h4 class="font-semibold mb-2">📧 Gmail SMTP Setup (one-time)</h4>
+      <p class="mb-2">Set these environment variables before running Django:</p>
+      <pre class="bg-blue-100 rounded-lg p-3 text-xs font-mono overflow-x-auto">export EMAIL_HOST_USER="your_gmail@gmail.com"
 export EMAIL_HOST_PASSWORD="your_16_char_app_password"</pre>
-    <p class="mt-2 text-xs text-blue-600">
-      Use a Gmail App Password, not your regular password.
-      <a href="https://support.google.com/accounts/answer/185833" target="_blank"
-         class="underline ml-1">How to create one →</a>
-    </p>
-  </div>
+      <p class="mt-2 text-xs text-blue-600">
+        Use a Gmail App Password, not your regular password.
+        <a href="https://support.google.com/accounts/answer/185833" target="_blank"
+           class="underline ml-1">How to create one →</a>
+      </p>
+    </div>
 
-  <div class="mt-6">
-    <button type="submit"
-            class="bg-primary hover:bg-blue-900 text-white font-semibold px-6 py-2.5
-                   rounded-lg transition-colors text-sm shadow-md">
-      Save Settings
-    </button>
+    <div>
+      <button type="submit" id="saveBtn"
+              class="bg-primary hover:bg-blue-900 text-white font-semibold px-6 py-2.5
+                     rounded-lg transition-colors text-sm shadow-md">
+        Save Settings
+      </button>
+    </div>
+
   </div>
 </form>
 
@@ -138,54 +209,93 @@ export EMAIL_HOST_PASSWORD="your_16_char_app_password"</pre>
 
 {% block extra_js %}
 <script>
-  function updatePreview() {
-    const h    = document.getElementById('cutoff_hour').value;
-    const m    = document.getElementById('cutoff_minute').value;
-    const ampm = document.getElementById('cutoff_ampm').value;
-    document.getElementById('cutoffPreview').textContent = `Selected: ${h}:${m} ${ampm}`;
 
-    // Convert to 24h HH:MM string for hidden field
-    let h24 = parseInt(h);
-    if (ampm === 'AM' && h24 === 12) h24 = 0;
-    if (ampm === 'PM' && h24 !== 12) h24 += 12;
-    const padded = String(h24).padStart(2, '0');
-    document.getElementById('late_cutoff_time_hidden').value = `${padded}:${m}`;
+function loadTime(h24Str, hourId, minId, ampmId) {
+  if(!h24Str || !h24Str.includes(':')) return;
+  const [hStr, mStr] = h24Str.split(':');
+  let h = parseInt(hStr, 10);
+  const rawMin = parseInt(mStr.slice(0,2), 10);
+
+  // Snap minute to nearest 00/15/30/45
+  const opts = [0, 15, 30, 45];
+  const snapped = opts.reduce((p, c) => Math.abs(c-rawMin) < Math.abs(p-rawMin) ? c : p);
+
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if(h > 12) h -= 12;
+  if(h === 0) h = 12;
+
+  document.getElementById(hourId).value  = String(h);
+  document.getElementById(minId).value   = String(snapped).padStart(2,'0');
+  document.getElementById(ampmId).value  = ampm;
+}
+
+
+function getTime24(hourId, minId, ampmId) {
+  const h    = parseInt(document.getElementById(hourId).value);
+  const m    = document.getElementById(minId).value;
+  const ampm = document.getElementById(ampmId).value;
+  let h24 = h;
+  if(ampm === 'AM' && h24 === 12) h24 = 0;
+  if(ampm === 'PM' && h24 !== 12) h24 += 12;
+  return { str: `${String(h24).padStart(2,'0')}:${m}`, mins: h24*60 + parseInt(m) };
+}
+
+function getLabel(hourId, minId, ampmId) {
+  const h = document.getElementById(hourId).value;
+  const m = document.getElementById(minId).value;
+  const a = document.getElementById(ampmId).value;
+  return `${h}:${m} ${a}`;
+}
+
+
+function syncAll() {
+  const start = getTime24('start_hour','start_minute','start_ampm');
+  const late  = getTime24('late_hour', 'late_minute', 'late_ampm');
+  const end   = getTime24('end_hour',  'end_minute',  'end_ampm');
+
+  document.getElementById('start_hidden').value = start.str;
+  document.getElementById('late_hidden').value  = late.str;
+  document.getElementById('end_hidden').value   = end.str;
+
+  // Preview text
+  const sL = getLabel('start_hour','start_minute','start_ampm');
+  const lL = getLabel('late_hour', 'late_minute', 'late_ampm');
+  const eL = getLabel('end_hour',  'end_minute',  'end_ampm');
+  document.getElementById('windowPreview').innerHTML =
+    `<span class="text-green-600 font-semibold">${sL}</span>
+     <span class="text-slate-400 mx-2">→ On time until →</span>
+     <span class="text-yellow-600 font-semibold">${lL}</span>
+     <span class="text-slate-400 mx-2">→ Late until →</span>
+     <span class="text-red-500 font-semibold">${eL}</span>
+     <span class="text-slate-400 ml-2">→ Closed`;
+
+  // Validation
+  const warn = document.getElementById('windowWarning');
+  const btn  = document.getElementById('saveBtn');
+  const issues = [];
+  if(late.mins <= start.mins) issues.push('Late cutoff must be after Start time.');
+  if(late.mins >= end.mins)   issues.push('Late cutoff must be before End time.');
+  if(end.mins  <= start.mins) issues.push('End time must be after Start time.');
+
+  if(issues.length) {
+    warn.textContent = '⚠ ' + issues.join(' ');
+    warn.classList.remove('hidden');
+    btn.disabled = true;
+    btn.classList.add('opacity-40','cursor-not-allowed');
+  } else {
+    warn.classList.add('hidden');
+    btn.disabled = false;
+    btn.classList.remove('opacity-40','cursor-not-allowed');
   }
+}
 
-  // Step 1: Populate selects from saved value FIRST
-  const saved = "{{ config.late_cutoff_time|time:'H:i' }}";
-  if (saved && saved !== 'None' && saved.includes(':')) {
-    const [hStr, mStr] = saved.split(':');
-    let h = parseInt(hStr, 10);
-    const rawMin = mStr.slice(0, 2);  // take only MM part
 
-    // Find closest minute option: 00/15/30/45
-    const minOptions = [0, 15, 30, 45];
-    const nearestMin = minOptions.reduce((prev, curr) =>
-      Math.abs(curr - parseInt(rawMin, 10)) < Math.abs(prev - parseInt(rawMin, 10)) ? curr : prev
-    );
-    const minStr = String(nearestMin).padStart(2, '0');
+loadTime("{{ config.attendance_start_time|time:'H:i' }}", 'start_hour','start_minute','start_ampm');
+loadTime("{{ config.late_cutoff_time|time:'H:i' }}",      'late_hour', 'late_minute', 'late_ampm');
+loadTime("{{ config.attendance_end_time|time:'H:i' }}",   'end_hour',  'end_minute',  'end_ampm');
+syncAll();
 
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    if (h > 12) h -= 12;
-    if (h === 0) h = 12;
 
-    document.getElementById('cutoff_hour').value   = String(h);
-    document.getElementById('cutoff_minute').value = minStr;
-    document.getElementById('cutoff_ampm').value   = ampm;
-  }
-
-  // Step 2: NOW sync hidden field and preview from the populated selects
-  updatePreview();
-
-  // Step 3: Listen for user changes
-  ['cutoff_hour', 'cutoff_minute', 'cutoff_ampm'].forEach(id => {
-    document.getElementById(id).addEventListener('change', updatePreview);
-  });
-
-  // Step 4: Sync again on submit (belt-and-suspenders)
-  document.getElementById('settingsForm').addEventListener('submit', function () {
-    updatePreview();
-  });
+document.getElementById('settingsForm').addEventListener('submit', syncAll);
 </script>
 {% endblock %}
