@@ -59,6 +59,7 @@ except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
 
 
+
 def _generate_qr_bytes(student):
     data = f"{student.student_id}|{student.name}|{student.student_class}"
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -140,6 +141,7 @@ def _verify_face(image_bytes, student_id, strict=False):
 
 
 
+
 class LoginView(View):
     def get(self, request):
         if request.user.is_authenticated:
@@ -160,6 +162,8 @@ class LogoutView(View):
     def get(self, request):
         logout(request)
         return redirect('login')
+
+
 
 
 @method_decorator(login_required, name='dispatch')
@@ -253,6 +257,21 @@ class ProcessFrameView(View):
                 student = Student.objects.get(student_id=student_id)
             except Student.DoesNotExist:
                 return JsonResponse({'status': 'unknown_student'})
+
+        from datetime import datetime as dt
+        now_time = dt.now().time()
+        config = AttendanceSettings.objects.filter(pk=1).first()
+        if config:
+            if now_time < config.attendance_start_time:
+                return JsonResponse({
+                    'status': 'outside_window',
+                    'message': f'Attendance not open yet. Opens at {config.attendance_start_time.strftime("%I:%M %p")}',
+                })
+            if now_time > config.attendance_end_time:
+                return JsonResponse({
+                    'status': 'outside_window',
+                    'message': f'Attendance window closed at {config.attendance_end_time.strftime("%I:%M %p")}',
+                })
 
             # Double-check duplicate (race condition guard)
             if Attendance.objects.filter(student=student, date=timezone.localdate()).exists():
@@ -600,20 +619,18 @@ class IDCardDownloadView(View):
 
         student = get_object_or_404(Student, student_id=student_id)
 
-        # Card dimensions
         CARD_W, CARD_H = 800, 320
-        PADDING = 24
-        FACE_SIZE = 220   # square face crop
-        QR_SIZE = 220   # QR code size
-        BG_COLOR = (255, 255, 255)
-        PRIMARY = (30,  58,  95)   # dark blue
-        TEXT_DARK = (31,  41,  55)
-        TEXT_GRAY = (107, 114, 128)
-        ACCENT = (232, 160, 32)   # yellow
+        PADDING        = 24
+        FACE_SIZE      = 220   # square face crop
+        QR_SIZE        = 220   # QR code size
+        BG_COLOR       = (255, 255, 255)
+        PRIMARY        = (30,  58,  95)   # dark blue
+        TEXT_DARK      = (31,  41,  55)
+        TEXT_GRAY      = (107, 114, 128)
+        ACCENT         = (232, 160, 32)   # yellow
 
         card = Image.new('RGB', (CARD_W, CARD_H), BG_COLOR)
         draw = ImageDraw.Draw(card)
-
         draw.rectangle([0, 0, CARD_W, 48], fill=PRIMARY)
 
         # Try to load a font; fall back to default if not available
@@ -694,14 +711,12 @@ class IDCardDownloadView(View):
         draw.text((info_x, y_cursor + 6), "Scan QR to mark attendance",
                   font=font_small, fill=TEXT_GRAY)
 
-
         draw.rectangle([0, CARD_H - 28, CARD_W, CARD_H], fill=(248, 250, 252))
         draw.line([0, CARD_H - 28, CARD_W, CARD_H - 28], fill=(226, 232, 240), width=1)
         draw.text((PADDING, CARD_H - 20),
                   "Ajay Binay Institute of Technology — Attendance System",
                   font=font_small, fill=TEXT_GRAY)
 
-        
         out_buf = BytesIO()
         card.save(out_buf, format='PNG', dpi=(150, 150))
         out_buf.seek(0)
@@ -743,29 +758,45 @@ class SettingsView(View):
     def post(self, request):
         config = AttendanceSettings.get()
 
-        # Parse cutoff time from hidden field (format: HH:MM sent by JS)
-        raw_cutoff = request.POST.get('late_cutoff_time', '').strip()
-        if raw_cutoff:
+        def parse_time_field(field_name):
+            """Parse HH:MM hidden field → dt_time object, return None on failure."""
+            raw = request.POST.get(field_name, '').strip()
+            if not raw:
+                return None
             try:
-                from datetime import time as dt_time
-                parts = raw_cutoff.split(':')
-                h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
-                # Clamp to valid range
-                h = max(0, min(23, h))
-                m = max(0, min(59, m))
-                config.late_cutoff_time = dt_time(h, m)
+                parts = raw.split(':')
+                h = max(0, min(23, int(parts[0])))
+                m = max(0, min(59, int(parts[1]))) if len(parts) > 1 else 0
+                return dt_time(h, m)
             except (ValueError, IndexError):
-                pass  # Keep existing value if parsing fails
+                return None
 
-        config.notification_email = request.POST.get('notification_email', '')
-        config.notify_on_absent = request.POST.get('notify_on_absent') == 'on'
+        start = parse_time_field('attendance_start_time')
+        end   = parse_time_field('attendance_end_time')
+        late  = parse_time_field('late_cutoff_time')
+
+        if start: config.attendance_start_time = start
+        if end:   config.attendance_end_time   = end
+        if late:  config.late_cutoff_time       = late
+
+        # Validate: start < late < end
+        warnings = []
+        if config.late_cutoff_time <= config.attendance_start_time:
+            warnings.append('Late cutoff must be after start time.')
+        if config.late_cutoff_time >= config.attendance_end_time:
+            warnings.append('Late cutoff must be before end time.')
+
+        config.notification_email  = request.POST.get('notification_email', '')
+        config.notify_on_absent    = request.POST.get('notify_on_absent') == 'on'
         config.save()
 
-        from datetime import time as dt_time
-        saved_display = config.late_cutoff_time.strftime('%I:%M %p')
+        msg = f'Settings saved! Window: {config.attendance_start_time.strftime("%I:%M %p")} – {config.attendance_end_time.strftime("%I:%M %p")} | Late after: {config.late_cutoff_time.strftime("%I:%M %p")}'
+        if warnings:
+            msg += ' ⚠ ' + ' '.join(warnings)
+
         return render(request, 'dashboard/settings.html', {
             'config': config,
-            'success': f'Settings saved! Late cutoff: {saved_display}'
+            'success': msg,
         })
 
 
@@ -874,6 +905,7 @@ class FaceEnrollStudentView(View):
 
         encoding = encodings_list[0]
 
+
         top, right, bottom, left = locations[0]
         # Add 30% padding around detected face box
         h_img, w_img = frame.shape[:2]
@@ -893,7 +925,7 @@ class FaceEnrollStudentView(View):
         face_path = os.path.join(faces_dir, f'{student_id}.jpg')
         cv2.imwrite(face_path, face_thumb)
 
-       
+        # ── Save encoding ────────────────────────────────────────────────────
         encodings = _load_encodings()
         encodings[student_id] = {'name': student.name, 'encoding': encoding}
         _save_encodings(encodings)

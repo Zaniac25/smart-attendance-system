@@ -8,3 +8,10 @@ def get_item(dictionary, key):
     if isinstance(dictionary, dict):
         return dictionary.get(key, '')
     return ''
+
+@register.filter
+def split(value, delimiter):
+    """Split a string by delimiter. Usage: {{ "1,2,3"|split:"," }}"""
+    if not value:
+        return []
+    return value.split(delimiter)
