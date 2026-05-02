@@ -4,30 +4,40 @@
 {% block page_title %}Students{% endblock %}
 {% block page_subtitle %}Enrolled student database{% endblock %}
 
+{% block header_actions %}
+  <a href="{% url 'student_add' %}"
+     class="flex items-center gap-2 bg-primary hover:bg-blue-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    Add Student
+  </a>
+  <a href="{% url 'student_import' %}"
+     class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    Import CSV
+  </a>
+{% endblock %}
+
 {% block content %}
 
-<!-- Search -->
-<form method="GET" class="mb-6 flex gap-3">
-  <input type="text" name="q" value="{{ search }}"
-         placeholder="Search by name or ID..."
-         class="flex-1 max-w-sm border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-  <button type="submit"
-          class="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-900 transition-colors">
-    Search
-  </button>
-  {% if search %}
-  <a href="{% url 'students' %}" class="text-slate-500 hover:text-slate-800 text-sm py-2">Clear</a>
-  {% endif %}
-</form>
+{% include "dashboard/filter_bar.html" %}
 
 <!-- Students Table -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+  <div class="px-6 py-3 border-b border-slate-100 flex items-center justify-between">
+    <p class="text-sm text-slate-500">
+      Showing <span class="font-semibold text-slate-700">{{ total }}</span> student{{ total|pluralize }}
+    </p>
+  </div>
+  <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-50 border-b border-slate-200">
       <tr>
-        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-6 py-3">Student ID</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">ID</th>
         <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Name</th>
-        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Class</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Course</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Branch</th>
+        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Section</th>
         <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Face</th>
         <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">QR</th>
         <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Attendance %</th>
@@ -37,29 +47,35 @@
     <tbody>
       {% for student in students %}
       <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-        <td class="px-6 py-3 font-mono text-slate-600 text-xs">{{ student.student_id }}</td>
+        <td class="px-4 py-3 font-mono text-slate-600 text-xs">{{ student.student_id }}</td>
         <td class="px-4 py-3 font-medium text-slate-800">{{ student.name }}</td>
-        <td class="px-4 py-3 text-slate-500">{{ student.student_class }}</td>
-        <td class="px-4 py-3 text-center">
-          {% if student.face_enrolled %}
-            <span class="text-green-500 text-base">✓</span>
-          {% else %}
-            <span class="text-slate-300 text-base">—</span>
-          {% endif %}
+        <td class="px-4 py-3 text-slate-600 text-xs">
+          {% if student.course %}
+            <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">{{ student.course }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 text-slate-600 text-xs">
+          {% if student.branch %}
+            <span class="bg-green-50 text-green-700 px-2 py-0.5 rounded font-medium">{{ student.branch }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 text-slate-600 text-xs">
+          {% if student.section %}
+            <span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-medium">Sec {{ student.section }}</span>
+          {% else %}—{% endif %}
         </td>
         <td class="px-4 py-3 text-center">
-          {% if student.qr_generated %}
-            <span class="text-green-500 text-base">✓</span>
-          {% else %}
-            <span class="text-slate-300 text-base">—</span>
-          {% endif %}
+          {% if student.face_enrolled %}<span class="text-green-500">✓</span>{% else %}<span class="text-slate-300">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-center">
+          {% if student.qr_generated %}<span class="text-green-500">✓</span>{% else %}<span class="text-slate-300">—</span>{% endif %}
         </td>
         <td class="px-4 py-3">
           {% with pct=student.attendance_percentage %}
           <div class="flex items-center gap-2">
-            <div class="w-20 bg-slate-100 rounded-full h-1.5">
+            <div class="w-16 bg-slate-100 rounded-full h-1.5">
               <div class="h-1.5 rounded-full {% if pct >= 75 %}bg-green-500{% elif pct >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
-                   style="width: {{ pct }}%"></div>
+                   style="width: '{{ pct }}%'"></div>
             </div>
             <span class="text-xs font-semibold {% if pct >= 75 %}text-green-600{% elif pct >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
               {{ pct }}%
@@ -74,28 +90,26 @@
             <a href="{% url 'student_edit' student.student_id %}"
                class="text-amber-600 hover:text-amber-800 text-xs font-medium">Edit</a>
             <form method="POST" action="{% url 'student_delete' student.student_id %}"
-                  onsubmit="return confirm('Delete {{ student.name }}? This removes all their attendance records.')">
+                  onsubmit="return confirm('Delete {{ student.name }}?')">
               {% csrf_token %}
-              <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-medium">
-                Delete
-              </button>
+              <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
             </form>
           </div>
         </td>
       </tr>
       {% empty %}
       <tr>
-        <td colspan="7" class="px-6 py-12 text-center text-slate-400">
-          No students found{% if search %} for "{{ search }}"{% endif %}.
+        <td colspan="9" class="px-6 py-12 text-center text-slate-400">
+          No students found{% if search or course or branch or section %} matching filters{% endif %}.
+          {% if not search and not course and not branch and not section %}
+          <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline ml-1">Add students →</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
-
-<p class="mt-3 text-xs text-slate-400">
-  {{ students|length }} student{{ students|length|pluralize }} found
-</p>
 
 {% endblock %}

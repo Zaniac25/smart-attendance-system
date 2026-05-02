@@ -18,6 +18,8 @@
 
 {% block content %}
 
+{% include "dashboard/filter_bar.html" %}
+
 <!-- Action bar -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-6 flex flex-wrap items-center gap-3">
   <button onclick="selectAll()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">Select All</button>
@@ -122,6 +124,7 @@
       </div>
     </div>
   </div>
+
 
   {% empty %}
   <div class="col-span-full text-center py-16 text-slate-400">

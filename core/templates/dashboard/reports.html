@@ -27,11 +27,14 @@
 {% block content %}
 
 <!-- Date Filter -->
-<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-4 mb-6 flex items-center gap-4">
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-4 mb-4 flex items-center gap-4">
   <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
   </svg>
   <form method="GET" class="flex items-center gap-3">
+    {% if course %}<input type="hidden" name="course" value="{{ course }}"/>{% endif %}
+    {% if branch %}<input type="hidden" name="branch" value="{{ branch }}"/>{% endif %}
+    {% if section %}<input type="hidden" name="section" value="{{ section }}"/>{% endif %}
     <label class="text-sm font-medium text-slate-700">Date:</label>
     <input type="date" name="date" value="{{ date_str }}"
            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
@@ -44,6 +47,8 @@
   </form>
   <div id="emailStatus" class="ml-auto text-sm"></div>
 </div>
+
+{% include "dashboard/filter_bar.html" %}
 
 <!-- Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -124,15 +129,15 @@
                   <input type="time" id="edit-time-{{ r.id }}"
                          value="{{ r.time|time:'H:i' }}"
                          class="border border-slate-300 rounded px-2 py-0.5 text-xs w-24"/>
-                  <button onclick="saveEdit({{ r.id }})"
+                  <button onclick="saveEdit('{{ r.id }}')"
                           class="text-green-600 hover:text-green-800 text-xs font-semibold">Save</button>
-                  <button onclick="cancelEdit({{ r.id }})"
+                  <button onclick="cancelEdit('{{ r.id }}')"
                           class="text-slate-400 hover:text-slate-600 text-xs">✕</button>
                 </div>
-                <button onclick="startEdit({{ r.id }})"
+                <button onclick="startEdit('{{ r.id }}')"
                         id="edit-btn-{{ r.id }}"
                         class="text-amber-500 hover:text-amber-700 text-xs font-medium">Edit</button>
-                <button onclick="deleteAttendance({{ r.id }}, '{{ r.student.student_id }}')"
+                <button onclick="deleteAttendance('{{ r.id }}', '{{ r.student.student_id }}')"
                         class="text-red-400 hover:text-red-600 text-xs font-medium">Delete</button>
               </div>
             </td>
@@ -210,7 +215,7 @@
           <div class="flex items-center gap-2">
             <div class="flex-1 bg-slate-100 rounded-full h-2 w-32">
               <div class="h-2 rounded-full {% if row.percentage >= 75 %}bg-green-500{% elif row.percentage >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
-                   style="width: {{ row.percentage }}%"></div>
+                   style="width: '{{ row.percentage }}%'"></div>
             </div>
             <span class="text-xs font-bold {% if row.percentage >= 75 %}text-green-600{% elif row.percentage >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
               {{ row.percentage }}%
@@ -232,10 +237,10 @@
   new Chart(document.getElementById('trendChart'), {
     type: 'bar',
     data: {
-      labels: {{ trend_labels|safe }},
+      labels: '{{ trend_labels|safe }}',
       datasets: [{
         label: 'Present',
-        data: {{ trend_present|safe }},
+        data: '{{ trend_present|safe }}',
         backgroundColor: 'rgba(34,197,94,0.7)',
         borderRadius: 6,
       }],
@@ -271,7 +276,7 @@
     .finally(() => { btn.disabled = false; btn.textContent = 'Send Absent Email'; });
   }
 
-
+  // ── Inline edit ──────────────────────────────────────────────────────────────
   function startEdit(id) {
     document.getElementById(`edit-btn-${id}`).style.display = 'none';
     document.getElementById(`edit-form-${id}`).style.display = 'flex';
@@ -300,7 +305,7 @@
     }
   }
 
-  
+  // ── Delete ───────────────────────────────────────────────────────────────────
   async function deleteAttendance(id, sid) {
     if(!confirm('Delete this attendance record?')) return;
     const fd = new FormData();

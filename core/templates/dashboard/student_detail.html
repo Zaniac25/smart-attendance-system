@@ -74,9 +74,27 @@
         <span class="text-slate-500">Name</span>
         <span class="font-medium">{{ student.name }}</span>
       </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500">Course</span>
+        {% if student.course %}
+          <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">{{ student.course }}</span>
+        {% else %}<span class="text-slate-300">—</span>{% endif %}
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500">Branch</span>
+        {% if student.branch %}
+          <span class="bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-medium">{{ student.branch }}</span>
+        {% else %}<span class="text-slate-300">—</span>{% endif %}
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500">Section</span>
+        {% if student.section %}
+          <span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-xs font-medium">Sec {{ student.section }}</span>
+        {% else %}<span class="text-slate-300">—</span>{% endif %}
+      </div>
       <div class="flex justify-between">
-        <span class="text-slate-500">Class</span>
-        <span>{{ student.student_class }}</span>
+        <span class="text-slate-500">Class Label</span>
+        <span class="text-slate-600 text-xs">{{ student.student_class }}</span>
       </div>
       <div class="flex justify-between">
         <span class="text-slate-500">Email</span>
@@ -99,7 +117,7 @@
 
   <!-- Recent Records -->
   <div class="lg:col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-    <h3 class="font-semibold text-slate-800 mb-4">Recent Attendance</h3>
+    <h3 class="font-semibold text-slate-800 mb-4">Recent Attendance (Last 10)</h3>
     <table class="w-full text-sm">
       <thead class="text-slate-500 text-xs uppercase tracking-wide border-b border-slate-100">
         <tr>
@@ -112,7 +130,7 @@
         {% for record in recent_records %}
         <tr class="border-b border-slate-50 hover:bg-slate-50">
           <td class="py-2 pr-4 text-slate-700">{{ record.date|date:"M j, Y" }}</td>
-          <td class="py-2 pr-4 font-mono text-slate-600">{{ record.time|time:"H:i" }}</td>
+          <td class="py-2 pr-4 font-mono text-slate-600">{{ record.time|time:"g:i A" }}</td>
           <td class="py-2">
             {% if record.is_late %}
               <span class="bg-yellow-100 text-yellow-700 text-xs font-medium px-2 py-0.5 rounded-full">Late</span>
@@ -136,8 +154,8 @@
 
 {% block extra_js %}
 <script>
-  const labels   = {{ labels_json|safe }};
-  const statuses = {{ statuses_json|safe }};
+  const labels   = '{{ labels_json|safe }}';
+  const statuses = '{{ statuses_json|safe }}';
 
   const colorMap = {
     present: '#22c55e',
