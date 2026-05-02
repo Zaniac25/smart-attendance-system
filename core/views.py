@@ -60,6 +60,31 @@ except ImportError:
 
 
 
+def _get_filter_options():
+    """Return distinct courses, branches, sections for dropdown population."""
+    return {
+        'courses':  Student.objects.values_list('course',  flat=True).exclude(course='').distinct().order_by('course'),
+        'branches': Student.objects.values_list('branch',  flat=True).exclude(branch='').distinct().order_by('branch'),
+        'sections': Student.objects.values_list('section', flat=True).exclude(section='').distinct().order_by('section'),
+    }
+
+
+def _apply_filters(qs, request):
+    """Apply course/branch/section/search filters from GET params to a Student queryset."""
+    course  = request.GET.get('course',  '').strip()
+    branch  = request.GET.get('branch',  '').strip()
+    section = request.GET.get('section', '').strip()
+    search  = request.GET.get('q',       '').strip()
+
+    if course:  qs = qs.filter(course=course)
+    if branch:  qs = qs.filter(branch=branch)
+    if section: qs = qs.filter(section=section)
+    if search:
+        qs = qs.filter(name__icontains=search) | qs.filter(student_id__icontains=search)
+
+    return qs, {'course': course, 'branch': branch, 'section': section, 'search': search}
+
+
 def _generate_qr_bytes(student):
     data = f"{student.student_id}|{student.name}|{student.student_class}"
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -141,7 +166,6 @@ def _verify_face(image_bytes, student_id, strict=False):
 
 
 
-
 class LoginView(View):
     def get(self, request):
         if request.user.is_authenticated:
@@ -184,7 +208,6 @@ class DashboardView(View):
 
 
 
-
 @method_decorator(login_required, name='dispatch')
 class ScannerPageView(View):
     def get(self, request):
@@ -212,6 +235,7 @@ class ProcessFrameView(View):
             return JsonResponse({'status': 'no_frame'}, status=400)
 
         image_bytes = frame_file.read()
+
 
         if mode == 'qr_only':
             qr_results = _decode_qr_from_bytes(image_bytes)
@@ -247,7 +271,7 @@ class ProcessFrameView(View):
                 'student_class': student.student_class,
             })
 
-    
+
         if mode == 'face_and_mark':
             student_id = request.POST.get('student_id', '').strip()
             if not student_id:
@@ -258,6 +282,7 @@ class ProcessFrameView(View):
             except Student.DoesNotExist:
                 return JsonResponse({'status': 'unknown_student'})
 
+        
         from datetime import datetime as dt
         now_time = dt.now().time()
         config = AttendanceSettings.objects.filter(pk=1).first()
@@ -334,6 +359,7 @@ class ProcessFrameView(View):
         return JsonResponse({'status': 'error', 'message': 'Invalid mode'}, status=400)
 
 
+
 @method_decorator(login_required, name='dispatch')
 class ReportsView(View):
     def get(self, request):
@@ -343,13 +369,23 @@ class ReportsView(View):
         except ValueError:
             target_date = timezone.localdate()
 
-        trend = get_weekly_trend(days=14)
+        # Apply filters to scope the report
+        qs = Student.objects.all()
+        qs, active_filters = _apply_filters(qs, request)
+        filtered_ids = list(qs.values_list('student_id', flat=True))
+
+        report     = get_daily_report(target_date, student_ids=filtered_ids)
+        cls_report = get_classwise_report(target_date, student_ids=filtered_ids)
+        trend      = get_weekly_trend(days=14)
+
         context = {
-            'report': get_daily_report(target_date),
-            'class_report': get_classwise_report(target_date),
+            'report': report,
+            'class_report': cls_report,
             'date_str': date_str,
-            'trend_labels': json.dumps(trend['labels']),
+            'trend_labels':  json.dumps(trend['labels']),
             'trend_present': json.dumps(trend['present']),
+            **active_filters,
+            **_get_filter_options(),
         }
         return render(request, 'dashboard/reports.html', context)
 
@@ -405,34 +441,35 @@ class SendNotificationView(View):
         return JsonResponse({'success': send_daily_absent_report(target_date)})
 
 
+
 @method_decorator(login_required, name='dispatch')
 class StudentsView(View):
     def get(self, request):
         qs = Student.objects.all()
-        search = request.GET.get('q', '').strip()
-        class_filter = request.GET.get('class', '').strip()
-        if search:
-            qs = qs.filter(name__icontains=search) | qs.filter(student_id__icontains=search)
-        if class_filter:
-            qs = qs.filter(student_class=class_filter)
+        qs, active_filters = _apply_filters(qs, request)
         return render(request, 'dashboard/students.html', {
-            'students': qs.order_by('student_class', 'name'),
-            'search': search, 'class_filter': class_filter,
-            'all_classes': Student.objects.values_list('student_class', flat=True).distinct().order_by('student_class'),
+            'students': qs.order_by('course', 'branch', 'section', 'name'),
             'total': qs.count(),
+            **active_filters,
+            **_get_filter_options(),
         })
 
 
 @method_decorator(login_required, name='dispatch')
 class StudentAddView(View):
     def get(self, request):
-        return render(request, 'dashboard/student_form.html', {'action': 'Add'})
+        return render(request, 'dashboard/student_form.html',
+                      {'action': 'Add', **_get_filter_options()})
 
     def post(self, request):
-        sid = request.POST.get('student_id', '').strip()
-        name = request.POST.get('name', '').strip()
-        cls = request.POST.get('student_class', '').strip()
-        email = request.POST.get('email', '').strip()
+        sid     = request.POST.get('student_id',    '').strip()
+        name    = request.POST.get('name',          '').strip()
+        course  = request.POST.get('course',        '').strip()
+        branch  = request.POST.get('branch',        '').strip()
+        section = request.POST.get('section',       '').strip()
+        cls     = request.POST.get('student_class', '').strip()  # fallback if no course/branch
+        email   = request.POST.get('email',         '').strip()
+
         errors = {}
         if not sid:
             errors['student_id'] = 'Required.'
@@ -440,12 +477,24 @@ class StudentAddView(View):
             errors['student_id'] = f'ID "{sid}" already exists.'
         if not name:
             errors['name'] = 'Required.'
-        if not cls:
-            errors['student_class'] = 'Required.'
+        if not course and not cls:
+            errors['course'] = 'Course is required.'
+
         if errors:
             return render(request, 'dashboard/student_form.html',
-                          {'action': 'Add', 'errors': errors, 'data': request.POST})
-        Student.objects.create(student_id=sid, name=name, student_class=cls, email=email or None)
+                          {'action': 'Add', 'errors': errors,
+                           'data': request.POST, **_get_filter_options()})
+
+        student = Student(student_id=sid, name=name, course=course,
+                          branch=branch, section=section, email=email or None)
+        # If no course/branch provided, use raw student_class field
+        if not course and cls:
+            student.course = ''
+            student.branch = ''
+            student.section = ''
+            student.student_class = cls
+            Student.objects.filter(pk=student.pk).update(student_class=cls)
+        student.save()
         return redirect('students')
 
 
@@ -455,24 +504,42 @@ class StudentEditView(View):
         s = get_object_or_404(Student, student_id=student_id)
         return render(request, 'dashboard/student_form.html', {
             'action': 'Edit', 'student': s,
-            'data': {'student_id': s.student_id, 'name': s.name,
-                     'student_class': s.student_class, 'email': s.email or ''},
+            'data': {
+                'student_id':    s.student_id,
+                'name':          s.name,
+                'course':        s.course,
+                'branch':        s.branch,
+                'section':       s.section,
+                'student_class': s.student_class,
+                'email':         s.email or '',
+            },
+            **_get_filter_options(),
         })
 
     def post(self, request, student_id):
-        s = get_object_or_404(Student, student_id=student_id)
-        name = request.POST.get('name', '').strip()
-        cls = request.POST.get('student_class', '').strip()
-        email = request.POST.get('email', '').strip()
+        s       = get_object_or_404(Student, student_id=student_id)
+        name    = request.POST.get('name',    '').strip()
+        course  = request.POST.get('course',  '').strip()
+        branch  = request.POST.get('branch',  '').strip()
+        section = request.POST.get('section', '').strip()
+        email   = request.POST.get('email',   '').strip()
+
         errors = {}
         if not name:
             errors['name'] = 'Required.'
-        if not cls:
-            errors['student_class'] = 'Required.'
+        if not course:
+            errors['course'] = 'Required.'
         if errors:
             return render(request, 'dashboard/student_form.html',
-                          {'action': 'Edit', 'student': s, 'errors': errors, 'data': request.POST})
-        s.name, s.student_class, s.email = name, cls, email or None
+                          {'action': 'Edit', 'student': s,
+                           'errors': errors, 'data': request.POST,
+                           **_get_filter_options()})
+
+        s.name    = name
+        s.course  = course
+        s.branch  = branch
+        s.section = section
+        s.email   = email or None
         s.save()
         return redirect('student_detail', student_id=student_id)
 
@@ -510,22 +577,48 @@ class StudentImportView(View):
                           {'error': 'Please upload a valid .csv file.'})
 
         reader = csv.DictReader(io.StringIO(csv_file.read().decode('utf-8')))
-        if not {'StudentID', 'Name', 'Class'}.issubset(set(reader.fieldnames or [])):
+        fieldnames = set(reader.fieldnames or [])
+
+        # Support both old format (Class) and new format (Course/Branch/Section)
+        if 'StudentID' not in fieldnames or 'Name' not in fieldnames:
             return render(request, 'dashboard/student_import.html',
-                          {'error': 'CSV must have headers: StudentID, Name, Class'})
+                          {'error': 'CSV must have headers: StudentID, Name, and either Class or Course/Branch/Section'})
 
         created, updated, skipped, row_errors = 0, 0, 0, []
         for i, row in enumerate(reader, 2):
-            sid = row.get('StudentID', '').strip()
-            name = row.get('Name', '').strip()
-            cls = row.get('Class', '').strip()
-            email = row.get('Email', '').strip() or None
-            if not all([sid, name, cls]):
-                row_errors.append(f"Row {i}: incomplete — skipped")
+            sid   = row.get('StudentID', '').strip()
+            name  = row.get('Name',      '').strip()
+            email = row.get('Email',     '').strip() or None
+
+            if not sid or not name:
+                row_errors.append(f"Row {i}: missing StudentID or Name — skipped")
                 skipped += 1
                 continue
+
+            # Prefer new fields; fall back to parsing Class string
+            course  = row.get('Course',  '').strip()
+            branch  = row.get('Branch',  '').strip()
+            section = row.get('Section', '').strip()
+
+            if not course:
+                # Try to parse from legacy Class field e.g. "Btech CSE Sec A"
+                cls_raw = row.get('Class', '').strip()
+                if cls_raw:
+                    parts = cls_raw.split()
+                    # Heuristic: first word = course, second = branch, "Sec X" = section
+                    course = parts[0] if len(parts) > 0 else ''
+                    branch = parts[1] if len(parts) > 1 else ''
+                    if 'Sec' in parts:
+                        idx = parts.index('Sec')
+                        section = parts[idx + 1] if idx + 1 < len(parts) else ''
+
             _, was_created = Student.objects.update_or_create(
-                student_id=sid, defaults={'name': name, 'student_class': cls, 'email': email})
+                student_id=sid,
+                defaults={
+                    'name': name, 'course': course,
+                    'branch': branch, 'section': section, 'email': email,
+                }
+            )
             created += 1 if was_created else 0
             updated += 0 if was_created else 1
 
@@ -536,12 +629,14 @@ class StudentImportView(View):
 
 
 
+
 @method_decorator(login_required, name='dispatch')
 class QRGenerateView(View):
     def get(self, request):
-        students = Student.objects.all().order_by('student_class', 'name')
+        qs = Student.objects.all()
+        qs, active_filters = _apply_filters(qs, request)
+        students = qs.order_by('course', 'branch', 'section', 'name')
 
-        # Build dict of {student_id: face_url} for enrolled students
         faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
         face_photos = {}
         for student in students:
@@ -552,6 +647,8 @@ class QRGenerateView(View):
         return render(request, 'dashboard/qr_generate.html', {
             'students': students,
             'face_photos': face_photos,
+            **active_filters,
+            **_get_filter_options(),
         })
 
     def post(self, request):
@@ -619,18 +716,21 @@ class IDCardDownloadView(View):
 
         student = get_object_or_404(Student, student_id=student_id)
 
+        
         CARD_W, CARD_H = 800, 320
-        PADDING        = 24
-        FACE_SIZE      = 220   # square face crop
-        QR_SIZE        = 220   # QR code size
-        BG_COLOR       = (255, 255, 255)
-        PRIMARY        = (30,  58,  95)   # dark blue
-        TEXT_DARK      = (31,  41,  55)
-        TEXT_GRAY      = (107, 114, 128)
-        ACCENT         = (232, 160, 32)   # yellow
+        PADDING = 24
+        FACE_SIZE = 220   # square face crop
+        QR_SIZE = 220   # QR code size
+        BG_COLOR = (255, 255, 255)
+        PRIMARY = (30,  58,  95)   # dark blue
+        TEXT_DARK = (31,  41,  55)
+        TEXT_GRAY = (107, 114, 128)
+        ACCENT = (232, 160, 32)   # yellow
 
         card = Image.new('RGB', (CARD_W, CARD_H), BG_COLOR)
         draw = ImageDraw.Draw(card)
+
+        
         draw.rectangle([0, 0, CARD_W, 48], fill=PRIMARY)
 
         # Try to load a font; fall back to default if not available
@@ -645,7 +745,7 @@ class IDCardDownloadView(View):
 
         draw.text((PADDING, 14), "ABIT — Student Attendance Card", font=font_title, fill=(255, 255, 255))
 
-        # Face photo 
+
         face_x, face_y = PADDING, 60
         faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
         face_path = os.path.join(faces_dir, f'{student_id}.jpg')
@@ -666,6 +766,7 @@ class IDCardDownloadView(View):
             draw.text((face_x + 55, face_y + 90), "No Face\nEnrolled",
                       font=font_detail, fill=TEXT_GRAY, align='center')
 
+        
         qr_bytes = _generate_qr_bytes(student)
         qr_img   = Image.open(BytesIO(qr_bytes)).convert('RGB')
         qr_img   = qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS)
@@ -677,6 +778,7 @@ class IDCardDownloadView(View):
         )
         card.paste(qr_img, (qr_x, qr_y))
 
+        #  Student info (centre column) 
         info_x = face_x + FACE_SIZE + PADDING
         info_w = qr_x - info_x - PADDING
 
@@ -711,12 +813,14 @@ class IDCardDownloadView(View):
         draw.text((info_x, y_cursor + 6), "Scan QR to mark attendance",
                   font=font_small, fill=TEXT_GRAY)
 
+       
         draw.rectangle([0, CARD_H - 28, CARD_W, CARD_H], fill=(248, 250, 252))
         draw.line([0, CARD_H - 28, CARD_W, CARD_H - 28], fill=(226, 232, 240), width=1)
         draw.text((PADDING, CARD_H - 20),
                   "Ajay Binay Institute of Technology — Attendance System",
                   font=font_small, fill=TEXT_GRAY)
 
+        
         out_buf = BytesIO()
         card.save(out_buf, format='PNG', dpi=(150, 150))
         out_buf.seek(0)
@@ -748,6 +852,7 @@ class IDCardDownloadAllView(View):
         response = HttpResponse(zip_buf.read(), content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="all_id_cards.zip"'
         return response
+
 
 
 @method_decorator(login_required, name='dispatch')
@@ -800,6 +905,8 @@ class SettingsView(View):
         })
 
 
+
+
 def _get_encodings_path():
     """Find face_encodings.pkl — check root then desktop/ subfolder."""
     for path in [
@@ -834,15 +941,21 @@ class FaceEnrollView(View):
     Enrollment itself happens via webcam capture on the same page (no terminal needed).
     """
     def get(self, request):
-        students = Student.objects.all().order_by('student_class', 'name')
+        qs = Student.objects.all()
+        qs, active_filters = _apply_filters(qs, request)
+        students = qs.order_by('course', 'branch', 'section', 'name')
+
         enrolled_ids = set()
         if FACE_RECOGNITION_AVAILABLE:
             encodings = _load_encodings()
             enrolled_ids = set(encodings.keys())
+
         return render(request, 'dashboard/face_enroll.html', {
             'students': students,
             'enrolled_ids': enrolled_ids,
             'face_available': FACE_RECOGNITION_AVAILABLE,
+            **active_filters,
+            **_get_filter_options(),
         })
 
 
@@ -905,7 +1018,7 @@ class FaceEnrollStudentView(View):
 
         encoding = encodings_list[0]
 
-
+        # ── Save cropped face image to media/student_faces/<id>.jpg 
         top, right, bottom, left = locations[0]
         # Add 30% padding around detected face box
         h_img, w_img = frame.shape[:2]
@@ -925,7 +1038,7 @@ class FaceEnrollStudentView(View):
         face_path = os.path.join(faces_dir, f'{student_id}.jpg')
         cv2.imwrite(face_path, face_thumb)
 
-        # ── Save encoding ────────────────────────────────────────────────────
+        # ── Save encoding 
         encodings = _load_encodings()
         encodings[student_id] = {'name': student.name, 'encoding': encoding}
         _save_encodings(encodings)
@@ -943,6 +1056,7 @@ class FaceEnrollStudentView(View):
         })
 
 
+
 @method_decorator(login_required, name='dispatch')
 class ManualAttendanceView(View):
     """
@@ -956,15 +1070,15 @@ class ManualAttendanceView(View):
         except ValueError:
             target_date = datetime.now().date()
 
-        students = Student.objects.all().order_by('student_class', 'name')
+        qs = Student.objects.all()
+        qs, active_filters = _apply_filters(qs, request)
+        students = qs.order_by('course', 'branch', 'section', 'name')
 
-        # Fetch existing attendance for this date keyed by student_id
         existing = {
             a.student.student_id: a
             for a in Attendance.objects.filter(date=target_date).select_related('student')
         }
 
-        # Build combined list with status
         rows = []
         for student in students:
             record = existing.get(student.student_id)
@@ -976,15 +1090,13 @@ class ManualAttendanceView(View):
                 'is_manual': record.is_manual if record else True,
             })
 
-        all_classes = Student.objects.values_list(
-            'student_class', flat=True).distinct().order_by('student_class')
-
         return render(request, 'dashboard/manual_attendance.html', {
             'rows': rows,
             'date_str': date_str,
             'target_date': target_date,
-            'all_classes': all_classes,
-            'existing_count': len(existing),
+            'existing_count': len([r for r in rows if r['is_present']]),
+            **active_filters,
+            **_get_filter_options(),
         })
 
     def post(self, request):
@@ -1146,6 +1258,8 @@ class AttendanceUploadView(View):
                 'skipped': skipped, 'errors': row_errors,
             }
         })
+
+
 
 
 class APIMarkAttendance(APIView):

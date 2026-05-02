@@ -12,12 +12,14 @@ from collections import defaultdict
 from .models import Student, Attendance
 
 
-def get_daily_report(target_date: date) -> dict:
+def get_daily_report(target_date: date, student_ids: list = None) -> dict:
     """
     Full daily report: present, absent, late counts + student lists.
-    Single DB query per category — no N+1.
+    Optionally scope to a subset of student_ids (for course/branch/section filtering).
     """
     all_students = Student.objects.all()
+    if student_ids is not None:
+        all_students = all_students.filter(student_id__in=student_ids)
     total = all_students.count()
 
     present_records = (
@@ -26,6 +28,8 @@ def get_daily_report(target_date: date) -> dict:
         .select_related('student')
         .order_by('time')
     )
+    if student_ids is not None:
+        present_records = present_records.filter(student__student_id__in=student_ids)
 
     present_ids = set(present_records.values_list('student__student_id', flat=True))
     late_count = present_records.filter(is_late=True).count()
@@ -85,17 +89,20 @@ def get_weekly_trend(days: int = 7) -> dict:
     }
 
 
-def get_classwise_report(target_date: date) -> list:
+def get_classwise_report(target_date: date, student_ids: list = None) -> list:
     """
     Per-class attendance breakdown for a given date.
-    Returns a list sorted by class name.
+    Optionally scope to a subset of student_ids.
     """
     all_students = Student.objects.all()
-    present_ids = set(
-        Attendance.objects
-        .filter(date=target_date)
-        .values_list('student__student_id', flat=True)
-    )
+    if student_ids is not None:
+        all_students = all_students.filter(student_id__in=student_ids)
+
+    present_qs = Attendance.objects.filter(date=target_date)
+    if student_ids is not None:
+        present_qs = present_qs.filter(student__student_id__in=student_ids)
+
+    present_ids = set(present_qs.values_list('student__student_id', flat=True))
 
     class_map = defaultdict(lambda: {'total': 0, 'present': 0, 'late': 0})
 
