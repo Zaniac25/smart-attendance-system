@@ -15,22 +15,34 @@ from datetime import time
 
 
 class Student(models.Model):
-    student_id = models.CharField(max_length=20, unique=True, db_index=True)
-    name = models.CharField(max_length=100)
-    student_class = models.CharField(max_length=50)
-    email = models.EmailField(blank=True, null=True)  # For absent notifications
+    student_id    = models.CharField(max_length=20, unique=True, db_index=True)
+    name          = models.CharField(max_length=100)
+    course        = models.CharField(max_length=50, blank=True, default='')   # e.g. Btech
+    branch        = models.CharField(max_length=50, blank=True, default='')   # e.g. CSE
+    section       = models.CharField(max_length=20, blank=True, default='')   # e.g. A
+    student_class = models.CharField(max_length=100)                          # auto: "Btech CSE Sec A"
+    email         = models.EmailField(blank=True, null=True)
     face_enrolled = models.BooleanField(default=False)
-    qr_generated = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    qr_generated  = models.BooleanField(default=False)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['student_class', 'name']
+        ordering = ['course', 'branch', 'section', 'name']
         verbose_name = 'Student'
         verbose_name_plural = 'Students'
 
     def __str__(self):
         return f"{self.student_id} — {self.name} ({self.student_class})"
+
+    def save(self, *args, **kwargs):
+        """Auto-generate student_class from course + branch + section."""
+        parts = [p.strip() for p in [self.course, self.branch] if p.strip()]
+        if self.section.strip():
+            parts.append(f"Sec {self.section.strip()}")
+        if parts:
+            self.student_class = ' '.join(parts)
+        super().save(*args, **kwargs)
 
     @property
     def attendance_percentage(self):
