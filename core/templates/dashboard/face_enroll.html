@@ -315,7 +315,7 @@ function handleBackdropClick(e) {
   if(e.target === document.getElementById('enrollModal')) closeModal();
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// Tabs 
 async function switchTab(tab) {
   currentTab = tab;
   const isWebcam = tab === 'webcam';
@@ -343,8 +343,16 @@ async function startWebcam() {
     });
     enrollVideo.srcObject = enrollStream;
     await enrollVideo.play();
-  } catch(e) {
-    showResult('webcam', false, '❌ Camera access denied — use Photo Upload instead');
+    } catch(e) {
+    // Only show error if camera is REALLY not working
+    if (e.name === 'NotAllowedError') {
+      showResult('webcam', false, '❌ Camera permission denied - please allow camera access or use Photo Upload');
+    } else if (e.name === 'NotFoundError') {
+      showResult('webcam', false, '❌ No camera found on this device');
+    } else {
+      // Don't show error for other issues - the capture might still work
+      console.log("Camera notice:", e.message);
+    }
   }
 }
 
