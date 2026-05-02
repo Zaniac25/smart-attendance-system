@@ -30,6 +30,7 @@ from django.utils import timezone
 from django.views import View
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
+import time
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -647,6 +648,7 @@ class QRGenerateView(View):
         return render(request, 'dashboard/qr_generate.html', {
             'students': students,
             'face_photos': face_photos,
+            'now': timezone.now(),
             **active_filters,
             **_get_filter_options(),
         })
@@ -1046,13 +1048,15 @@ class FaceEnrollStudentView(View):
         student.face_enrolled = True
         student.save(update_fields=['face_enrolled'])
 
+        student.save()
+
         source = 'photo' if request.FILES.get('photo') else 'webcam'
         return JsonResponse({
             'success': True,
             'message': f'{student.name} enrolled successfully via {source}',
             'student_name': student.name,
             'source': source,
-            'face_url': f'/media/student_faces/{student_id}.jpg',
+            'face_url': f'/media/student_faces/{student_id}.jpg?t={int(time.time())}',
         })
 
 

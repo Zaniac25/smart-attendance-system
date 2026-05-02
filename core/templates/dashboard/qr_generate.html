@@ -50,7 +50,7 @@
            style="min-height:140px">
         {% with face_url=face_photos|get_item:student.student_id %}
         {% if face_url %}
-          <img src="{{ face_url }}"
+          <img src="{{ face_url }}?t={% now 'U' %}"
                alt="{{ student.name }}"
                class="w-full h-32 object-cover rounded-lg border border-slate-200"/>
         {% else %}
