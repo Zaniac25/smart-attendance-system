@@ -1,0 +1,112 @@
+{% comment %}
+Reusable filter bar for Students, QR, Face Enrollment, Reports.
+Include with: {% include "dashboard/filter_bar.html" %}
+Requires context: courses, branches, sections, course, branch, section, search
+{% endcomment %}
+
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-5">
+  <form method="GET" class="flex flex-wrap items-end gap-3" id="filterForm">
+
+    <!-- Preserve date param for reports page -->
+    {% if date_str %}
+    <input type="hidden" name="date" value="{{ date_str }}"/>
+    {% endif %}
+
+    <!-- Search -->
+    <div class="flex flex-col gap-1 flex-1 min-w-36">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Search</label>
+      <input type="text" name="q" value="{{ search }}"
+             placeholder="Name or ID..."
+             class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+    </div>
+
+    <!-- Course -->
+    <div class="flex flex-col gap-1 min-w-32">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Course</label>
+      <select name="course" onchange="cascadeFilter()"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+              id="courseSelect">
+        <option value="">All Courses</option>
+        {% for c in courses %}
+        <option value="{{ c }}" {% if c == course %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Branch -->
+    <div class="flex flex-col gap-1 min-w-32">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Branch</label>
+      <select name="branch" onchange="cascadeFilter()"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+              id="branchSelect">
+        <option value="">All Branches</option>
+        {% for b in branches %}
+        <option value="{{ b }}" {% if b == branch %}selected{% endif %}>{{ b }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Section -->
+    <div class="flex flex-col gap-1 min-w-24">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Section</label>
+      <select name="section"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+              id="sectionSelect">
+        <option value="">All Sections</option>
+        {% for s in sections %}
+        <option value="{{ s }}" {% if s == section %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Buttons -->
+    <div class="flex gap-2">
+      <button type="submit"
+              class="bg-primary hover:bg-blue-900 text-white text-sm font-semibold
+                     px-4 py-2 rounded-lg transition-colors">
+        Filter
+      </button>
+      {% if course or branch or section or search %}
+      <a href="?{% if date_str %}date={{ date_str }}{% endif %}"
+         class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium
+                px-4 py-2 rounded-lg transition-colors">
+        Clear
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- Active filter badges -->
+    {% if course or branch or section %}
+    <div class="w-full flex flex-wrap gap-2 pt-1">
+      {% if course %}
+      <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
+        Course: {{ course }}
+      </span>
+      {% endif %}
+      {% if branch %}
+      <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
+        Branch: {{ branch }}
+      </span>
+      {% endif %}
+      {% if section %}
+      <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-1 rounded-full">
+        Section: {{ section }}
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </form>
+</div>
+
+<script>
+// Cascade: when course changes, reload with only matching branches
+// For now just submit form — full server-side filtering is more reliable
+function cascadeFilter() {
+  document.getElementById('filterForm').submit();
+}
+</script>

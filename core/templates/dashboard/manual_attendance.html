@@ -18,9 +18,8 @@
 {% block content %}
 
 <!-- Date + filter bar -->
-<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-5
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-4
             flex flex-wrap items-center gap-4">
-
   <div class="flex items-center gap-3">
     <label class="text-sm font-medium text-slate-700">Date:</label>
     <input type="date" id="dateInput" value="{{ date_str }}"
@@ -31,19 +30,6 @@
       Load
     </button>
   </div>
-
-  <div class="flex items-center gap-3">
-    <label class="text-sm font-medium text-slate-700">Class:</label>
-    <select id="classFilter" onchange="filterByClass()"
-            class="border border-slate-300 rounded-lg px-3 py-2 text-sm
-                   focus:outline-none focus:ring-2 focus:ring-blue-500">
-      <option value="">All Classes</option>
-      {% for cls in all_classes %}
-      <option value="{{ cls }}">{{ cls }}</option>
-      {% endfor %}
-    </select>
-  </div>
-
   <div class="flex items-center gap-3 ml-auto">
     <button onclick="markAll(true)"
             class="text-sm text-green-600 hover:text-green-800 font-medium">✓ Mark All Present</button>
@@ -52,6 +38,8 @@
             class="text-sm text-red-500 hover:text-red-700 font-medium">✗ Mark All Absent</button>
   </div>
 </div>
+
+{% include "dashboard/filter_bar.html" %}
 
 <!-- Status bar -->
 <div id="statusBar" class="hidden rounded-xl px-5 py-3 mb-5 text-sm font-medium flex items-center gap-2"></div>
@@ -154,7 +142,7 @@
         <!-- Quick delete (only if record exists) -->
         <td class="px-3 py-3 text-center">
           {% if row.record %}
-          <button onclick="deleteRecord({{ row.record.id }}, '{{ row.student.student_id }}')"
+          <button onclick="deleteRecord('{{ row.record.id }}', '{{ row.student.student_id }}')"
                   class="text-red-400 hover:text-red-600 transition-colors"
                   title="Remove this attendance record">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,9 +175,9 @@
 <script>
 const CSRF     = '{{ csrf_token }}';
 const DATE_STR = '{{ date_str }}';
-const TOTAL    = {{ rows|length }};
+const TOTAL    = '{{ rows|length }}';
 
-
+// ── Date navigation ────────────────────────────────────────────────────────────
 function changeDate() {
   const d = document.getElementById('dateInput').value;
   if(d) window.location.href = `{% url 'manual_attendance' %}?date=${d}`;
@@ -198,7 +186,7 @@ document.getElementById('dateInput').addEventListener('keydown', e => {
   if(e.key === 'Enter') changeDate();
 });
 
-
+// ── Class filter ───────────────────────────────────────────────────────────────
 function filterByClass() {
   const cls = document.getElementById('classFilter').value;
   document.querySelectorAll('.student-row').forEach(row => {
@@ -206,7 +194,7 @@ function filterByClass() {
   });
 }
 
-
+// ── Select all / none ─────────────────────────────────────────────────────────
 function toggleAll(chk) {
   document.querySelectorAll('.attendance-checkbox').forEach(cb => {
     if(cb.closest('tr').style.display !== 'none') {
@@ -227,21 +215,21 @@ function markAll(present) {
   updateCounters();
 }
 
-
+// ── Checkbox change ────────────────────────────────────────────────────────────
 function onCheckboxChange(cb) {
   updateRowUI(cb);
   updateCounters();
 }
 
 function updateRowUI(cb) {
-  const sid = cb.dataset.sid;
-  const present = cb.checked;
-  const badge = document.getElementById(`badge-${sid}`);
+  const sid      = cb.dataset.sid;
+  const present  = cb.checked;
+  const badge    = document.getElementById(`badge-${sid}`);
   const timeInput = document.getElementById(`time-${sid}`);
 
   if(badge) {
     badge.textContent = present ? 'Present' : 'Absent';
-    badge.className = `text-xs font-semibold px-2.5 py-1 rounded-full ${
+    badge.className   = `text-xs font-semibold px-2.5 py-1 rounded-full ${
       present ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'
     }`;
   }
@@ -260,7 +248,7 @@ function updateCounters() {
   document.getElementById('absentCount').textContent  = visible.length - present;
 }
 
-
+// ── Save ───────────────────────────────────────────────────────────────────────
 async function saveAttendance() {
   const fd = new FormData();
   fd.append('csrfmiddlewaretoken', CSRF);
@@ -291,6 +279,7 @@ async function saveAttendance() {
   }
 }
 
+// ── Delete single record ───────────────────────────────────────────────────────
 async function deleteRecord(recordId, sid) {
   if(!confirm('Remove this attendance record?')) return;
 
@@ -314,6 +303,7 @@ async function deleteRecord(recordId, sid) {
   }
 }
 
+// ── Status bar ─────────────────────────────────────────────────────────────────
 function showStatus(msg, color) {
   const bar = document.getElementById('statusBar');
   const styles = {

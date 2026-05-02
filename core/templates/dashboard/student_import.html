@@ -30,7 +30,7 @@
             <tr class="border-b border-slate-100">
               <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">StudentID</td>
               <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">Required</span></td>
-              <td class="px-4 py-2.5 text-slate-600">Unique student identifier (numbers or text)</td>
+              <td class="px-4 py-2.5 text-slate-600">Unique student identifier</td>
               <td class="px-4 py-2.5 font-mono text-slate-500">220</td>
             </tr>
             <tr class="border-b border-slate-100">
@@ -40,16 +40,34 @@
               <td class="px-4 py-2.5 font-mono text-slate-500">M Tarini</td>
             </tr>
             <tr class="border-b border-slate-100">
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Course</td>
+              <td class="px-4 py-2.5"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">Recommended</span></td>
+              <td class="px-4 py-2.5 text-slate-600">Degree program</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">Btech</td>
+            </tr>
+            <tr class="border-b border-slate-100">
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Branch</td>
+              <td class="px-4 py-2.5"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">Recommended</span></td>
+              <td class="px-4 py-2.5 text-slate-600">Department / specialization</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">CSE</td>
+            </tr>
+            <tr class="border-b border-slate-100">
+              <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Section</td>
+              <td class="px-4 py-2.5"><span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full font-medium">Optional</span></td>
+              <td class="px-4 py-2.5 text-slate-600">Class section</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">A</td>
+            </tr>
+            <tr class="border-b border-slate-100">
               <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Class</td>
-              <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">Required</span></td>
-              <td class="px-4 py-2.5 text-slate-600">Class or section name</td>
+              <td class="px-4 py-2.5"><span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full font-medium">Legacy</span></td>
+              <td class="px-4 py-2.5 text-slate-600">Old combined field — auto-parsed</td>
               <td class="px-4 py-2.5 font-mono text-slate-500">Btech CSE Sec A</td>
             </tr>
             <tr>
               <td class="px-4 py-2.5 font-mono font-semibold text-blue-700">Email</td>
               <td class="px-4 py-2.5"><span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full font-medium">Optional</span></td>
-              <td class="px-4 py-2.5 text-slate-600">Student email for absent notifications</td>
-              <td class="px-4 py-2.5 font-mono text-slate-500">student@example.com</td>
+              <td class="px-4 py-2.5 text-slate-600">For absent notifications</td>
+              <td class="px-4 py-2.5 font-mono text-slate-500">student@abit.edu</td>
             </tr>
           </tbody>
         </table>
@@ -57,13 +75,12 @@
 
       <!-- Sample CSV preview -->
       <div>
-        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Sample CSV Content</p>
-        <pre class="bg-slate-900 text-green-400 rounded-xl px-5 py-4 text-xs font-mono overflow-x-auto leading-relaxed">StudentID,Name,Class,Email
-220,M Tarini,Btech CSE Sec A,tarini@abit.edu
-221,Anshul Kumar,Btech CSE Sec A,anshul@abit.edu
-222,Shivam Kumar,Btech CSE Sec A,
-143,Salman Khan,BCS AI Sec B,salman@abit.edu
-148,Irfan Ullah,BCS AI Sec B,</pre>
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Sample CSV Content (New Format)</p>
+        <pre class="bg-slate-900 text-green-400 rounded-xl px-5 py-4 text-xs font-mono overflow-x-auto leading-relaxed">StudentID,Name,Course,Branch,Section,Email
+220,M Tarini,Btech,CSE,A,tarini@abit.edu
+221,Anshul Kumar,Btech,CSE,A,
+143,Salman Khan,BCS,AI,B,salman@abit.edu</pre>
+        <p class="text-xs text-slate-400 mt-2">Also accepts old format with a <code class="bg-slate-100 px-1 rounded">Class</code> column — it will be parsed automatically.</p>
       </div>
 
       <!-- Rules -->
