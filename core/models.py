@@ -134,8 +134,12 @@ class AttendanceSettings(models.Model):
     
 
 class TeacherProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='teacher_profile')
     assigned_classes = models.JSONField(default=list)
+
+    class Meta:
+        verbose_name = 'Teacher Profile'
+        verbose_name_plural = 'Teacher Profiles'
     
     def __str__(self):
         return f"Teacher: {self.user.username}"
@@ -143,31 +147,54 @@ class TeacherProfile(models.Model):
     def get_students(self):
         return Student.objects.filter(student_class__in=self.assigned_classes)
     
+    def get_student_ids(self):
+        return list(self.get_students().values_list('student_id', flat=True))
+    
 
 class StudentProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='student_profile')
     student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='user_profile')
+
+    class Meta:
+        verbose_name = 'Student Profile'
+        verbose_name_plural = 'Student Profiles'
     
     def __str__(self):
         return f"Student: {self.student.name}"
     
     
 class ChangeRequest(models.Model):
-    STATUS = [('pending','Pending'), ('approved','Approved'), ('rejected','Rejected')]
-    TYPE = [('attendance','Attendance Change'), ('student_info','Student Info Change')]
+    STATUS_CHOICES = [
+        ('pending',  'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    TYPE_CHOICES = [
+        ('attendance',   'Attendance Change'),
+        ('student_info', 'Student Info Change'),
+        ('other',        'Other'),
+    ]
     
-    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='change_requests')
-    student_id = models.CharField(max_length=20)
-    request_type = models.CharField(max_length=20, choices=TYPE)
-    description = models.TextField()
-    date_affected = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS, default='pending')
-    admin_note = models.TextField(blank=True)
+    requested_by  = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='change_requests'
+    )
+    student_id = models.CharField(max_length=20, db_index=True)
+    request_type  = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    description = models.TextField(help_text='Describe exactly what needs to change')
+    date_affected = models.DateField(null=True, blank=True, help_text='Relevant date if attendance change')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending', db_index=True)
+    admin_note = models.TextField(blank=True, help_text='Admin response / reason')
     created_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['-created_at']
+        verbose_name = 'Change Request'
+        verbose_name_plural = 'Change Requests'
     
     def __str__(self):
         return f"{self.requested_by.username} → {self.student_id} [{self.status}]"
+    
+    @property
+    def is_pending(self):
+        return self.status == 'pending'

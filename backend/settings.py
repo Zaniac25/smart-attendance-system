@@ -56,10 +56,15 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.user_role',
             ],
         },
     },
 ]
+
+LOGIN_REDIRECT_URL = '/'   
+LOGIN_URL = '/login/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 

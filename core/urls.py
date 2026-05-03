@@ -1,3 +1,4 @@
+from django.contrib.auth import views as auth_views
 from django.urls import path
 from . import views
 
@@ -38,7 +39,9 @@ urlpatterns = [
     
     path('teacher/dashboard/', views.TeacherDashboardView.as_view(), name='teacher_dashboard'),
     path('teacher/students/', views.TeacherStudentsView.as_view(), name='teacher_students'),
+    path('teacher/students/<str:student_id>/', views.TeacherStudentDetailView.as_view(),    name='teacher_student_detail'),
     path('teacher/reports/', views.TeacherReportsView.as_view(), name='teacher_reports'),
+    path('teacher/export/excel/', views.TeacherExportExcelView.as_view(), name='teacher_export_excel'),
     path('teacher/scanner/', views.TeacherScannerView.as_view(), name='teacher_scanner'),
     path('teacher/change-requests/', views.TeacherChangeRequestView.as_view(), name='teacher_change_request'),
     
@@ -47,4 +50,16 @@ urlpatterns = [
     path('student/report/download/', views.StudentReportDownloadView.as_view(), name='student_report_download'),
 
     path('admin/change-requests/', views.AdminChangeRequestsView.as_view(), name='admin_change_requests'),
+
+    path('account/password-change/',
+         auth_views.PasswordChangeView.as_view(
+             template_name='dashboard/password_change.html',
+             success_url='/',
+         ),
+         name='password_change'),
+    path('account/password-change/done/',
+         auth_views.PasswordChangeDoneView.as_view(
+             template_name='dashboard/password_change_done.html',
+         ),
+         name='password_change_done'),
 ]
