@@ -18,6 +18,9 @@ import zipfile
 import numpy as np
 from io import BytesIO
 from datetime import date, datetime, time as dt_time
+from .roles import get_role, ROLE_HOME
+from django.contrib.auth.mixins import UserPassesTestMixin,LoginRequiredMixin
+from .roles import is_teacher, is_student, is_admin
 
 import qrcode
 import pandas as pd
@@ -37,7 +40,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 
-from .models import Student, Attendance, AttendanceSettings
+from .models import *
 from .serializers import StudentSerializer, MarkAttendanceSerializer
 from .analytics import (
     get_daily_report, get_weekly_trend,
@@ -179,7 +182,8 @@ class LoginView(View):
                             password=request.POST.get('password', '').strip())
         if user:
             login(request, user)
-            return redirect('dashboard')
+            role = get_role(user)
+            return redirect(ROLE_HOME.get(role, 'dashboard'))
         return render(request, 'dashboard/login.html', {'error': 'Invalid credentials'})
 
 
@@ -1330,3 +1334,82 @@ class APITodayStatus(APIView):
         marked = Attendance.objects.filter(
             student__student_id=student_id, date=timezone.localdate()).exists()
         return Response({'student_id': student_id, 'marked_today': marked})
+    
+
+class TeacherRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return is_teacher(self.request.user)
+    def handle_no_permission(self):
+        return redirect('login')
+
+class TeacherDashboardView(LoginRequiredMixin, TeacherRequiredMixin, View):
+    def get(self, request):
+        profile = get_object_or_404(TeacherProfile, user=request.user)
+        today   = timezone.localdate()
+        
+        # Only classes this teacher owns
+        student_ids = list(profile.get_students().values_list('student_id', flat=True))
+        
+        context = {
+            'profile':      profile,
+            'stats':        _get_teacher_stats(student_ids, today),
+            'class_report': get_classwise_report(today, student_ids=student_ids),
+            'today':        today,
+            **{k: json.dumps(v) for k, v in [
+                ('trend_labels',  get_weekly_trend(7)['labels']),
+                ('trend_present', get_weekly_trend(7)['present']),
+                ('trend_absent',  get_weekly_trend(7)['absent']),
+            ]},
+        }
+        return render(request, 'dashboard/teacher_dashboard.html', context)
+
+
+def _get_teacher_stats(student_ids, today):
+    total   = len(student_ids)
+    present = Attendance.objects.filter(date=today, student__student_id__in=student_ids).count()
+    late    = Attendance.objects.filter(date=today, student__student_id__in=student_ids, is_late=True).count()
+    return {
+        'total_students': total,
+        'present_today':  present,
+        'absent_today':   max(0, total - present),
+        'late_today':     late,
+    }
+
+
+class TeacherReportsView(LoginRequiredMixin, TeacherRequiredMixin, View):
+    def get(self, request):
+        profile    = get_object_or_404(TeacherProfile, user=request.user)
+        date_str   = request.GET.get('date', timezone.localdate().isoformat())
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            target_date = timezone.localdate()
+        
+        student_ids = list(profile.get_students().values_list('student_id', flat=True))
+        report      = get_daily_report(target_date, student_ids=student_ids)
+        cls_report  = get_classwise_report(target_date, student_ids=student_ids)
+        
+        context = {
+            'report':       report,
+            'class_report': cls_report,
+            'date_str':     date_str,
+            'profile':      profile,
+        }
+        return render(request, 'dashboard/teacher_reports.html', context)
+
+
+class TeacherScannerView(LoginRequiredMixin, TeacherRequiredMixin, View):
+    """Teacher gets same scanner page but scoped — scanner itself is frontend-only."""
+    def get(self, request):
+        profile = get_object_or_404(TeacherProfile, user=request.user)
+        return render(request, 'dashboard/teacher_scanner.html', {'profile': profile})
+
+
+class TeacherStudentsView(LoginRequiredMixin, TeacherRequiredMixin, View):
+    def get(self, request):
+        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        students = profile.get_students().order_by('student_class', 'name')
+        return render(request, 'dashboard/teacher_students.html', {
+            'students': students,
+            'profile':  profile,
+        })
