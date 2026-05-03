@@ -1413,3 +1413,24 @@ class TeacherStudentsView(LoginRequiredMixin, TeacherRequiredMixin, View):
             'students': students,
             'profile':  profile,
         })
+        
+class TeacherChangeRequestView(LoginRequiredMixin, TeacherRequiredMixin, View):
+    """Teacher submits a change request — stored in DB, admin sees it."""
+    def get(self, request):
+        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        requests = ChangeRequest.objects.filter(requested_by=request.user).order_by('-created_at')
+        return render(request, 'dashboard/teacher_change_request.html', {
+            'profile':  profile,
+            'requests': requests,
+        })
+    
+    def post(self, request):
+        profile = get_object_or_404(TeacherProfile, user=request.user)
+        ChangeRequest.objects.create(
+            requested_by  = request.user,
+            student_id = request.POST.get('student_id', '').strip(),
+            request_type = request.POST.get('request_type', ''),   
+            description = request.POST.get('description', '').strip(),
+            date_affected = request.POST.get('date_affected', None) or None,
+        )
+        return JsonResponse({'success': True, 'message': 'Request submitted to admin.'})

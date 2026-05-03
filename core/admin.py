@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Student, Attendance, AttendanceSettings, TeacherProfile, StudentProfile
+from .models import *
 
 
 @admin.register(Student)
@@ -43,3 +43,19 @@ class TeacherProfileAdmin(admin.ModelAdmin):
 @admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
     list_display = ['user', 'student']
+    
+@admin.register(ChangeRequest)
+class ChangeRequestAdmin(admin.ModelAdmin):
+    list_display  = ['requested_by', 'student_id', 'request_type', 'status', 'created_at']
+    list_filter = ['status', 'request_type']
+    actions = ['approve_requests', 'reject_requests']
+    
+    def approve_requests(self, request, queryset):
+        from django.utils import timezone as tz
+        queryset.update(status='approved', resolved_at=tz.now())
+    approve_requests.short_description = "Approve selected requests"
+    
+    def reject_requests(self, request, queryset):
+        from django.utils import timezone as tz
+        queryset.update(status='rejected', resolved_at=tz.now())
+    reject_requests.short_description = "Reject selected requests"
