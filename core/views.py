@@ -1434,3 +1434,90 @@ class TeacherChangeRequestView(LoginRequiredMixin, TeacherRequiredMixin, View):
             date_affected = request.POST.get('date_affected', None) or None,
         )
         return JsonResponse({'success': True, 'message': 'Request submitted to admin.'})
+
+
+@method_decorator(login_required, name='dispatch')
+class AdminChangeRequestsView(View):
+    def get(self, request):
+        if not is_admin(request.user):
+            return redirect('dashboard')
+        requests = ChangeRequest.objects.all().select_related('requested_by')
+        return render(request, 'dashboard/admin_change_requests.html', {'requests': requests})
+    
+    def post(self, request):
+        """Admin resolves a request."""
+        if not is_admin(request.user):
+            return JsonResponse({'success': False}, status=403)
+        req_id     = request.POST.get('request_id')
+        new_status = request.POST.get('status')   # 'approved' | 'rejected'
+        admin_note = request.POST.get('admin_note', '')
+        
+        cr = get_object_or_404(ChangeRequest, id=req_id)
+        cr.status     = new_status
+        cr.admin_note = admin_note
+        cr.resolved_at = timezone.now()
+        cr.save()
+        return JsonResponse({'success': True})
+    
+
+class StudentRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return is_student(self.request.user)
+    def handle_no_permission(self):
+        return redirect('login')
+
+
+class StudentDashboardView(LoginRequiredMixin, StudentRequiredMixin, View):
+    def get(self, request):
+        profile = get_object_or_404(StudentProfile, user=request.user)
+        student = profile.student
+        trend   = get_student_trend(student.student_id, days=30)
+        recent  = Attendance.objects.filter(student=student).order_by('-date')[:10]
+        
+        return render(request, 'dashboard/student_dashboard.html', {
+            'student': student,
+            'trend':   trend,
+            'recent':  recent,
+        })
+
+
+class StudentAttendanceView(LoginRequiredMixin, StudentRequiredMixin, View):
+    def get(self, request):
+        profile = get_object_or_404(StudentProfile, user=request.user)
+        student = profile.student
+        
+        # Full history, paginated
+        records = Attendance.objects.filter(student=student).order_by('-date')
+        trend   = get_student_trend(student.student_id, days=90)
+        
+        return render(request, 'dashboard/student_attendance.html', {
+            'student': student,
+            'records': records,
+            'trend':   trend,
+        })
+
+
+class StudentReportDownloadView(LoginRequiredMixin, StudentRequiredMixin, View):
+    """Generate Excel attendance report for the logged-in student."""
+    def get(self, request):
+        profile = get_object_or_404(StudentProfile, user=request.user)
+        student = profile.student
+        records = Attendance.objects.filter(student=student).order_by('-date')
+        
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            pd.DataFrame([{
+                'Date':   str(r.date),
+                'Time':   str(r.time),
+                'Status': 'Late' if r.is_late else 'Present',
+                'Source': 'Manual' if r.is_manual else 'Scanner',
+            } for r in records]).to_excel(writer, sheet_name='Attendance', index=False)
+        
+        output.seek(0)
+        safe_name = student.name.replace(' ', '_')
+        response  = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Attendance_{safe_name}.xlsx"'
+        return response
