@@ -1,0 +1,273 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Live Scanner — ABIT Attendance{% endblock %}
+{% block page_title %}Live Attendance Scanner{% endblock %}
+{% block page_subtitle %}Scoped to: {{ profile.assigned_classes|join:", " }}{% endblock %}
+
+{% block content %}
+
+<div class="bg-blue-50 border border-blue-200 rounded-xl px-5 py-3 mb-6 flex items-center gap-3 text-sm text-blue-800">
+  <i class="fas fa-info-circle text-blue-500 text-sm flex-shrink-0"></i>
+  Scanner will only accept QR codes from your assigned classes:
+  <strong>{{ profile.assigned_classes|join:", " }}</strong>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <div class="lg:col-span-2 space-y-4">
+
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+      <div id="phase1Indicator" class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300">
+        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+          <span class="text-white font-bold text-sm">1</span>
+        </div>
+        <div><p class="font-semibold text-blue-800 text-sm">Scan QR Code</p><p class="text-blue-600 text-xs">Hold QR card to camera</p></div>
+        <i id="phase1Check" class="fas fa-check-circle text-green-500 text-lg ml-auto flex-shrink-0 hidden"></i>
+      </div>
+      <i class="fas fa-chevron-right text-slate-300 text-sm flex-shrink-0"></i>
+      <div id="phase2Indicator" class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300">
+        <div id="phase2Circle" class="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0">
+          <span class="text-white font-bold text-sm">2</span>
+        </div>
+        <div><p class="font-semibold text-slate-600 text-sm">Face Verification</p><p class="text-slate-400 text-xs">Look directly at camera</p></div>
+      </div>
+    </div>
+
+    <div id="instructionBanner" class="rounded-xl px-5 py-3 flex items-center gap-3 bg-slate-100 border border-slate-200 transition-all duration-300">
+      <i id="bannerDot" class="fas fa-circle text-slate-400 text-[10px] flex-shrink-0"></i>
+      <span id="bannerText" class="font-medium text-slate-600 text-sm">Click Start Scanner to begin</span>
+    </div>
+
+    <div class="relative bg-black rounded-2xl overflow-hidden shadow-xl" style="aspect-ratio:16/9">
+      <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+      <div id="qrCrosshair" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+        <div class="text-center">
+          <div class="w-52 h-52 border-2 border-blue-400 rounded-xl relative overflow-hidden mx-auto">
+            <div class="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-90" style="animation:scanLine 1.8s linear infinite"></div>
+            <div class="absolute -top-px -left-px w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl"></div>
+            <div class="absolute -top-px -right-px w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr"></div>
+            <div class="absolute -bottom-px -left-px w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl"></div>
+            <div class="absolute -bottom-px -right-px w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br"></div>
+          </div>
+          <p class="text-blue-300 text-xs mt-3 font-semibold tracking-widest uppercase">Hold QR Here</p>
+        </div>
+      </div>
+      <div id="faceCrosshair" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+        <div class="text-center">
+          <div class="w-44 h-56 border-4 border-yellow-400 rounded-full mx-auto shadow-lg shadow-yellow-400/30" style="animation:pulse 1.5s ease-in-out infinite"></div>
+          <p id="faceStudentName" class="text-yellow-300 text-sm mt-3 font-semibold"></p>
+          <p class="text-yellow-200 text-xs mt-1">Look directly at the camera</p>
+        </div>
+      </div>
+      <div id="resultFlash" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+        <div id="resultCard" class="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2">
+          <div id="resultIcon" class="text-5xl mb-3"></div>
+          <div id="resultName" class="font-bold text-xl text-slate-800"></div>
+          <div id="resultClass" class="text-slate-500 text-sm mt-1"></div>
+          <div id="resultMsg" class="text-sm mt-2 font-semibold"></div>
+          <div id="resultTime" class="text-slate-400 text-xs mt-1"></div>
+        </div>
+      </div>
+      <div id="countdownBadge" class="absolute top-4 right-4 bg-black/70 text-white rounded-full w-14 h-14 flex flex-col items-center justify-center hidden">
+        <span id="countdownNum" class="font-bold text-xl leading-none"></span>
+        <span class="text-xs opacity-70">sec</span>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <button id="startBtn" onclick="startScanner()" class="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-sm">
+        <i class="fas fa-play text-sm"></i>
+        Start Scanner
+      </button>
+      <button id="stopBtn" onclick="stopScanner()" disabled class="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+        <i class="fas fa-stop text-sm"></i>
+        Stop Scanner
+      </button>
+    </div>
+    <canvas id="captureCanvas" class="hidden"></canvas>
+  </div>
+
+  <div class="space-y-4">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+      <h3 class="font-semibold text-slate-700 text-sm mb-3">
+        <i class="fas fa-chart-line text-primary mr-1"></i> Today's Progress
+      </h3>
+      <div class="flex justify-between items-end mb-2">
+        <div><p class="text-4xl font-bold text-green-600" id="presentCount">—</p><p class="text-xs text-slate-500">marked present</p></div>
+        <div class="text-right"><p class="text-2xl font-bold text-slate-400" id="totalCount">—</p><p class="text-xs text-slate-500">in your classes</p></div>
+      </div>
+      <div class="bg-slate-100 rounded-full h-2">
+        <div id="progressBar" class="h-2 bg-green-500 rounded-full transition-all duration-500" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-slate-700 text-sm">
+          <i class="fas fa-history text-primary mr-1"></i> Scan Log
+        </h3>
+        <button onclick="clearLog()" class="text-xs text-slate-400 hover:text-slate-600">
+          <i class="fas fa-trash-alt mr-1"></i> Clear
+        </button>
+      </div>
+      <div id="scanLog" class="space-y-1.5 overflow-y-auto text-xs" style="max-height:300px">
+        <p class="text-slate-400 italic">
+          <i class="fas fa-info-circle mr-1"></i> No scans yet...
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes scanLine { 0%{top:0} 100%{top:100%} }
+@keyframes pulse { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+
+<script>
+const CSRF = '{{ csrf_token }}';
+const PROCESS_URL = '{% url "process_frame" %}';
+
+let phase='idle', stream=null, qrTimer=null, faceTimer=null, countdown=null;
+let presentCount=0, secsLeft=10;
+
+const video=document.getElementById('video');
+const capture=document.getElementById('captureCanvas');
+const ctx2d=capture.getContext('2d');
+
+fetch('/api/reports/daily/').then(r=>r.json()).then(d=>{
+  document.getElementById('presentCount').textContent=d.present;
+  document.getElementById('totalCount').textContent=d.total_students;
+  presentCount=d.present;
+  updateBar(d.present,d.total_students);
+}).catch(()=>{});
+
+function updateBar(p,t){document.getElementById('progressBar').style.width=t>0?Math.round(p/t*100)+'%':'0%';}
+
+async function startScanner(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280}}});
+    video.srcObject=stream; await video.play();
+    document.getElementById('startBtn').disabled=true;
+    document.getElementById('stopBtn').disabled=false;
+    enterQR();
+  }catch(e){setBanner('error','❌ Camera denied — check browser permissions');}
+}
+
+function stopScanner(){
+  killTimers();
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  video.srcObject=null; phase='idle';
+  document.getElementById('startBtn').disabled=false;
+  document.getElementById('stopBtn').disabled=true;
+  document.getElementById('qrCrosshair').classList.add('hidden');
+  document.getElementById('faceCrosshair').classList.add('hidden');
+  document.getElementById('countdownBadge').classList.add('hidden');
+  setPhaseUI('idle'); setBanner('idle','Scanner stopped');
+}
+
+function killTimers(){clearInterval(qrTimer);clearInterval(faceTimer);clearInterval(countdown);qrTimer=faceTimer=countdown=null;}
+
+function enterQR(){
+  killTimers(); phase='qr'; setPhaseUI('qr');
+  setBanner('qr','📷 Phase 1 — Hold student\'s QR card to the camera');
+  document.getElementById('qrCrosshair').classList.remove('hidden');
+  document.getElementById('faceCrosshair').classList.add('hidden');
+  document.getElementById('countdownBadge').classList.add('hidden');
+  document.getElementById('phase1Check').classList.add('hidden');
+  qrTimer=setInterval(sendFrame.bind(null,'qr_only',null),600);
+}
+
+function enterFace(studentData){
+  killTimers(); phase='face'; setPhaseUI('face');
+  setBanner('face',`✅ QR: ${studentData.student_name} — Now look at the camera`);
+  document.getElementById('qrCrosshair').classList.add('hidden');
+  document.getElementById('faceCrosshair').classList.remove('hidden');
+  document.getElementById('faceStudentName').textContent=studentData.student_name;
+  document.getElementById('phase1Check').classList.remove('hidden');
+  secsLeft=10;
+  document.getElementById('countdownBadge').classList.remove('hidden');
+  document.getElementById('countdownNum').textContent=secsLeft;
+  countdown=setInterval(()=>{secsLeft--;document.getElementById('countdownNum').textContent=secsLeft;if(secsLeft<=0){killTimers();setBanner('error','⏱ Timeout — scan QR again');addLog('error',studentData.student_name+' (timeout)',studentData.student_class,null);setTimeout(enterQR,2000);}},1000);
+  faceTimer=setInterval(sendFrame.bind(null,'face_and_mark',studentData.student_id),800);
+}
+
+async function sendFrame(mode,studentId){
+  if(!video.videoWidth)return;
+  capture.width=video.videoWidth; capture.height=video.videoHeight;
+  ctx2d.drawImage(video,0,0);
+  const blob=await new Promise(res=>capture.toBlob(res,'image/jpeg',.85));
+  if(!blob)return;
+  const fd=new FormData();
+  fd.append('frame',blob,'frame.jpg'); fd.append('mode',mode); fd.append('csrfmiddlewaretoken',CSRF);
+  if(studentId)fd.append('student_id',studentId);
+  try{const resp=await fetch(PROCESS_URL,{method:'POST',body:fd});const data=await resp.json();if(mode==='qr_only')handleQR(data);else handleFace(data);}catch(e){console.error(e);}
+}
+
+function handleQR(data){
+  if(data.status==='no_qr'||data.status==='no_frame')return;
+  if(data.status==='qr_detected'){killTimers();enterFace(data);return;}
+  if(data.status==='already_marked'){killTimers();flash('⚠️',data.student_name,data.student_class,'Already marked today','orange');addLog('warn',data.student_name,data.student_class,null,false);setTimeout(enterQR,2500);return;}
+  if(data.status==='error'){setBanner('error',`❌ ${data.message}`);return;}
+  if(data.status==='unknown_student'){setBanner('error','❌ QR not in database');return;}
+}
+
+function handleFace(data){
+  if(data.status==='no_face')return;
+  killTimers();
+  if(data.status==='success'){flash('✅',data.student_name,data.student_class,data.is_late?'⚠ Marked — LATE':'Attendance Marked!','green');addLog('success',data.student_name,data.student_class,data.time,data.is_late);presentCount++;document.getElementById('presentCount').textContent=presentCount;updateBar(presentCount,parseInt(document.getElementById('totalCount').textContent)||0);setTimeout(stopScanner,2500);return;}
+  if(data.status==='face_mismatch'){flash('❌',data.student_name||'','','Face does not match','red');addLog('error',(data.student_name||'Unknown')+' — mismatch','',null,false);setTimeout(enterQR,2500);return;}
+  if(data.status==='face_not_enrolled'){flash('❌',data.student_name,data.student_class,'Face not enrolled','red');addLog('error',data.student_name+' — not enrolled',data.student_class,null,false);setTimeout(enterQR,3000);}
+  if(data.status==='outside_window'){flash('⏰','','',data.message,'orange');addLog('error',data.message,'',null,false);setTimeout(stopScanner,3000);}
+}
+
+function setPhaseUI(p){
+  const i1=document.getElementById('phase1Indicator'),i2=document.getElementById('phase2Indicator'),c2=document.getElementById('phase2Circle');
+  if(p==='qr'||p==='idle'){i1.className='flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300';i2.className='flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300';c2.className='w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0';}
+  else if(p==='face'){i1.className='flex-1 flex items-center gap-3 p-3 rounded-lg bg-green-50 border-2 border-green-400 transition-all duration-300';i2.className='flex-1 flex items-center gap-3 p-3 rounded-lg bg-yellow-50 border-2 border-yellow-400 transition-all duration-300';c2.className='w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0';}
+}
+
+function setBanner(type,text){
+  const el=document.getElementById('instructionBanner'),dot=document.getElementById('bannerDot'),span=document.getElementById('bannerText');
+  const s={qr:['bg-blue-50 border-blue-200','text-blue-500 animate-ping','text-blue-700'],face:['bg-yellow-50 border-yellow-200','text-yellow-500 animate-ping','text-yellow-800'],idle:['bg-slate-100 border-slate-200','text-slate-400','text-slate-500'],error:['bg-red-50 border-red-200','text-red-500','text-red-700']};
+  const [b,d,t]=s[type]||s.idle;
+  el.className=`rounded-xl px-5 py-3 flex items-center gap-3 border transition-all duration-300 ${b}`;
+  dot.className=`fas fa-circle ${d} text-[10px] flex-shrink-0`;
+  span.className=`font-medium text-sm ${t}`; span.textContent=text;
+}
+
+function flash(icon,name,cls,msg,color){
+  const overlay=document.getElementById('resultFlash'),card=document.getElementById('resultCard');
+  const borders={green:'border-green-400',orange:'border-yellow-400',red:'border-red-400'};
+  const bgs={green:'rgba(34,197,94,.2)',orange:'rgba(251,191,36,.2)',red:'rgba(248,113,113,.2)'};
+  const texts={green:'text-green-600',orange:'text-yellow-600',red:'text-red-500'};
+  card.className=`bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2 ${borders[color]}`;
+  document.getElementById('resultIcon').innerHTML = `<i class="fas ${icon === '✅' ? 'fa-check-circle' : icon === '❌' ? 'fa-times-circle' : icon === '⚠️' ? 'fa-exclamation-triangle' : 'fa-clock'} ${texts[color]} text-5xl"></i>`;
+  document.getElementById('resultName').textContent=name;
+  document.getElementById('resultClass').textContent=cls;
+  document.getElementById('resultMsg').className=`text-sm mt-2 font-semibold ${texts[color]}`;
+  document.getElementById('resultMsg').textContent=msg;
+  document.getElementById('resultTime').textContent=new Date().toLocaleTimeString();
+  overlay.style.opacity='1'; overlay.style.background=bgs[color];
+  setTimeout(()=>{overlay.style.opacity='0';overlay.style.background='transparent';},2200);
+}
+
+function addLog(type,name,cls,time,isLate){
+  const log=document.getElementById('scanLog');
+  log.querySelector('.italic')?.remove();
+  const c={success:'text-green-600',warn:'text-yellow-600',error:'text-red-500'};
+  const i={success:'fa-check-circle',warn:'fa-exclamation-triangle',error:'fa-times-circle'};
+  const t=time||new Date().toTimeString().slice(0,8);
+  const el=document.createElement('div');
+  el.className=`flex items-center gap-1.5 py-1 border-b border-slate-50 ${c[type]}`;
+  el.innerHTML=`<i class="fas ${i[type]} flex-shrink-0 w-4 text-xs"></i><span class="flex-1 truncate font-medium text-slate-700">${name}</span>${cls?`<span class="text-slate-400 text-xs">${cls}</span>`:''} ${isLate?'<span class="text-yellow-500 text-xs">[L]</span>':''}<span class="text-slate-400 flex-shrink-0 text-xs">${t}</span>`;
+  log.insertBefore(el,log.firstChild);
+}
+
+function clearLog(){document.getElementById('scanLog').innerHTML='<p class="text-slate-400 italic"><i class="fas fa-info-circle mr-1"></i> No scans yet...</p>';}
+window.addEventListener('beforeunload',stopScanner);
+</script>
+{% endblock %}

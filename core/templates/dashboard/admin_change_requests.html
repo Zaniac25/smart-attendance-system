@@ -1,0 +1,182 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Change Requests — ABIT Attendance{% endblock %}
+{% block page_title %}Change Requests{% endblock %}
+{% block page_subtitle %}Review and resolve teacher-submitted data change requests{% endblock %}
+
+{% block content %}
+
+<!-- Summary tabs -->
+<div class="flex gap-3 mb-6">
+  <a href="?status=pending"
+     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+            {% if status_filter == 'pending' %}bg-amber-500 text-white{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}">
+    <i class="fas fa-clock mr-1"></i> Pending
+    <span class="{% if status_filter == 'pending' %}bg-white/30{% else %}bg-amber-100 text-amber-700{% endif %} text-xs font-bold px-1.5 py-0.5 rounded-full ml-1">
+      {{ counts.pending }}
+    </span>
+  </a>
+  <a href="?status=approved"
+     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+            {% if status_filter == 'approved' %}bg-green-600 text-white{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}">
+    <i class="fas fa-check-circle mr-1"></i> Approved
+    <span class="{% if status_filter == 'approved' %}bg-white/30{% else %}bg-green-100 text-green-700{% endif %} text-xs font-bold px-1.5 py-0.5 rounded-full ml-1">
+      {{ counts.approved }}
+    </span>
+  </a>
+  <a href="?status=rejected"
+     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+            {% if status_filter == 'rejected' %}bg-red-500 text-white{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}">
+    <i class="fas fa-times-circle mr-1"></i> Rejected
+    <span class="{% if status_filter == 'rejected' %}bg-white/30{% else %}bg-red-100 text-red-700{% endif %} text-xs font-bold px-1.5 py-0.5 rounded-full ml-1">
+      {{ counts.rejected }}
+    </span>
+  </a>
+  <a href="?status=all"
+     class="px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+            {% if status_filter == 'all' %}bg-primary text-white{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}">
+    <i class="fas fa-list mr-1"></i> All
+  </a>
+</div>
+
+<!-- Requests list -->
+<div class="space-y-4">
+  {% for req in requests %}
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6" id="req-{{ req.id }}">
+    <div class="flex items-start gap-4">
+
+      <!-- Status icon -->
+      <div class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center
+        {% if req.status == 'pending' %}bg-amber-100{% elif req.status == 'approved' %}bg-green-100{% else %}bg-red-100{% endif %}">
+        {% if req.status == 'pending' %}
+          <i class="fas fa-clock text-amber-600 text-lg"></i>
+        {% elif req.status == 'approved' %}
+          <i class="fas fa-check-circle text-green-600 text-lg"></i>
+        {% else %}
+          <i class="fas fa-times-circle text-red-500 text-lg"></i>
+        {% endif %}
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <span class="font-semibold text-slate-800">
+            <i class="fas fa-user text-primary mr-1 text-xs"></i>
+            {{ req.requested_by.get_full_name|default:req.requested_by.username }}
+          </span>
+          <i class="fas fa-arrow-right text-slate-300 text-xs"></i>
+          <span class="font-mono text-sm text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+            <i class="fas fa-id-card mr-1 text-xs"></i> Student {{ req.student_id }}
+          </span>
+          <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+            <i class="fas {% if req.request_type == 'attendance' %}fa-calendar-check{% elif req.request_type == 'student_info' %}fa-user-edit{% else %}fa-question{% endif %} mr-1 text-xs"></i>
+            {{ req.get_request_type_display }}
+          </span>
+          {% if req.date_affected %}
+          <span class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+            <i class="far fa-calendar-alt mr-1 text-xs"></i> {{ req.date_affected|date:"M j, Y" }}
+          </span>
+          {% endif %}
+          <span class="ml-auto text-xs text-slate-400">
+            <i class="far fa-clock mr-1"></i> {{ req.created_at|date:"M j, Y g:i A" }}
+          </span>
+        </div>
+
+        <p class="text-sm text-slate-700 mb-3 bg-slate-50 rounded-lg px-4 py-3 border-l-4 border-slate-300">
+          <i class="fas fa-quote-left mr-1 text-slate-400 text-xs"></i>
+          {{ req.description }}
+        </p>
+
+        <!-- Admin note input (shown for pending) -->
+        {% if req.status == 'pending' %}
+        <div class="space-y-3">
+          <div class="relative">
+            <i class="fas fa-edit absolute left-3 top-3 text-slate-400 text-sm"></i>
+            <textarea id="note-{{ req.id }}" placeholder="Admin note (optional — visible to teacher)..."
+                      rows="2"
+                      class="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="resolveRequest('{{ req.id }}', 'approved')"
+                    class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white
+                           font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
+              <i class="fas fa-check text-sm"></i>
+              Approve
+            </button>
+            <button onclick="resolveRequest('{{ req.id }}', 'rejected')"
+                    class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white
+                           font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
+              <i class="fas fa-times text-sm"></i>
+              Reject
+            </button>
+            <a href="{% url 'student_detail' req.student_id %}"
+               class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700
+                      font-medium text-sm px-4 py-2 rounded-lg transition-colors">
+              View Student <i class="fas fa-arrow-right text-xs"></i>
+            </a>
+          </div>
+        </div>
+        {% else %}
+        <!-- Resolved state -->
+        {% if req.admin_note %}
+        <div class="bg-slate-50 rounded-lg px-4 py-2.5 border-l-4
+          {% if req.status == 'approved' %}border-green-400{% else %}border-red-400{% endif %}">
+          <p class="text-xs text-slate-600">
+            <i class="fas fa-user-shield mr-1 text-primary"></i>
+            <span class="font-semibold">Admin note:</span> {{ req.admin_note }}
+          </p>
+          {% if req.resolved_at %}
+          <p class="text-xs text-slate-400 mt-0.5">
+            <i class="fas fa-check-circle mr-1 text-green-500 text-[10px]"></i>
+            Resolved {{ req.resolved_at|date:"M j, Y g:i A" }}
+          </p>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-center py-20 text-slate-400 bg-white rounded-xl border border-slate-100 shadow-sm">
+    <i class="fas fa-inbox fa-4x mx-auto mb-4 opacity-30"></i>
+    <p class="text-sm font-medium">No {{ status_filter }} requests.</p>
+    <p class="text-xs mt-1">Teachers submit change requests from their portal.</p>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+async function resolveRequest(reqId, status) {
+  const note = document.getElementById(`note-${reqId}`)?.value.trim() || '';
+  const label = status === 'approved' ? 'approve' : 'reject';
+  if (!confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} this request?`)) return;
+
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('request_id', reqId);
+  fd.append('status',     status);
+  fd.append('admin_note', note);
+
+  try {
+    const resp = await fetch('{% url "admin_change_requests" %}', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.success) {
+      // Fade out and remove the card
+      const card = document.getElementById(`req-${reqId}`);
+      card.style.transition = 'opacity .4s';
+      card.style.opacity = '0';
+      setTimeout(() => { card.remove(); }, 400);
+    }
+  } catch (e) {
+    alert('Network error — please try again.');
+  }
+}
+</script>
+{% endblock %}

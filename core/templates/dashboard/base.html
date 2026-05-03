@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}ABIT Attendance{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome 6 (free) - replaces all inline SVGs with professional icon font -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
     tailwind.config = {
@@ -19,9 +21,52 @@
     }
   </script>
   <style>
-    .sidebar-link { @apply flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-primary-light hover:text-white transition-all duration-150 text-sm font-medium; }
-    .sidebar-link.active { @apply bg-accent text-primary font-semibold; }
-    .stat-card { @apply bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4; }
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      color: #cbd5e1;
+      transition: all 0.15s ease-in-out;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .sidebar-link:hover {
+      background-color: #2d5286;
+      color: #ffffff;
+    }
+    .sidebar-link.active {
+      background-color: #e8a020;
+      color: #1e3a5f;
+      font-weight: 600;
+    }
+    .sidebar-link.active i {
+      color: #1e3a5f; /* ensure active icon contrast */
+    }
+    .stat-card {
+      background-color: #ffffff;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    /* ensure consistent icon width and alignment */
+    .sidebar-link i, .user-icon i, .action-icon i {
+      width: 1.25rem;
+      text-align: center;
+      font-size: 1.1rem;
+    }
+    .nav-section-header i {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+    .sidebar-link:hover i {
+      color: white;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex">
@@ -30,161 +75,183 @@
   <aside class="w-64 bg-primary min-h-screen flex flex-col fixed top-0 left-0 z-10 shadow-xl">
     <!-- Logo -->
     <div class="px-6 py-5 border-b border-primary-light">
-      <h1 class="text-white font-bold text-lg leading-tight">ABIT Attendance</h1>
-      <p class="text-slate-400 text-xs mt-0.5">Management System</p>
+      <div class="flex items-center gap-2">
+        <i class="fas fa-chalkboard-user text-accent text-xl"></i>
+        <h1 class="text-white font-bold text-lg leading-tight">ABIT Attendance</h1>
+      </div>
+      {% if is_admin %}
+        <p class="text-slate-400 text-xs mt-0.5"><i class="fas fa-crown text-xs mr-1"></i> Administrator</p>
+      {% elif is_teacher %}
+        <p class="text-yellow-400 text-xs mt-0.5 font-medium"><i class="fas fa-chalkboard text-xs mr-1"></i> Teacher Portal</p>
+      {% elif is_student %}
+        <p class="text-green-400 text-xs mt-0.5 font-medium"><i class="fas fa-graduation-cap text-xs mr-1"></i> Student Portal</p>
+      {% endif %}
     </div>
 
-    <!-- Nav links -->
+    <!-- Nav links — role-aware with Font Awesome Icons (replaced SVG completely) -->
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
 
-      <!-- Dashboard -->
+      {% if is_admin %}
+      <!-- ══ ADMIN NAV ══ font-awesome 6 icons -->
       <a href="{% url 'dashboard' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-        </svg>
-        Dashboard
+        <i class="fas fa-tachometer-alt"></i>
+        <span>Dashboard</span>
       </a>
-
-      <!-- Scanner -->
       <a href="{% url 'scanner' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'scanner' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-        </svg>
-        Live Scanner
+        <i class="fas fa-qrcode"></i>
+        <span>Live Scanner</span>
       </a>
-
-      <!-- Divider -->
-      <div class="pt-2 pb-1 px-4">
-        <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Manage</p>
+      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
+        <i class="fas fa-sliders-h text-[10px]"></i>
+        <span>Manage</span>
       </div>
-
-      <!-- Students -->
       <a href="{% url 'students' %}"
          class="sidebar-link {% if request.resolver_match.url_name in 'students,student_detail,student_edit' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-        </svg>
-        Students
+        <i class="fas fa-users"></i>
+        <span>Students</span>
       </a>
-
-      <!-- Add Student -->
       <a href="{% url 'student_add' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'student_add' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-        </svg>
-        Add Student
+        <i class="fas fa-user-plus"></i>
+        <span>Add Student</span>
       </a>
-
-      <!-- Import CSV -->
       <a href="{% url 'student_import' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'student_import' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-        </svg>
-        Import CSV
+        <i class="fas fa-file-csv"></i>
+        <span>Import CSV</span>
       </a>
-
-      <!-- QR Codes -->
       <a href="{% url 'qr_generate' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'qr_generate' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0a8 8 0 01-8 8 8 8 0 010-16 8 8 0 018 8z"/>
-        </svg>
-        QR Codes
+        <i class="fas fa-qrcode"></i>
+        <span>QR Codes</span>
       </a>
-
-      <!-- Face Enrollment -->
       <a href="{% url 'face_enroll' %}"
          class="sidebar-link {% if 'face_enroll' in request.resolver_match.url_name %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        Face Enrollment
+        <i class="fas fa-face-smile"></i>
+        <span>Face Enrollment</span>
       </a>
-
-      <!-- Manual Attendance -->
       <a href="{% url 'manual_attendance' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-        </svg>
-        Manual Attendance
+        <i class="fas fa-pen-alt"></i>
+        <span>Manual Attendance</span>
       </a>
-
-      <!-- Upload Attendance -->
       <a href="{% url 'attendance_upload' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'attendance_upload' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-        </svg>
-        Upload Attendance
+        <i class="fas fa-upload"></i>
+        <span>Upload Attendance</span>
       </a>
-
-      <!-- Divider -->
-      <div class="pt-2 pb-1 px-4">
-        <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Reports</p>
+      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
+        <i class="fas fa-chart-line text-[10px]"></i>
+        <span>Reports</span>
       </div>
-
-      <!-- Reports -->
       <a href="{% url 'reports' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
-        </svg>
-        Reports
+        <i class="fas fa-chart-pie"></i>
+        <span>Reports</span>
       </a>
-
-      <!-- Settings -->
+      <a href="{% url 'admin_change_requests' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'admin_change_requests' %}active{% endif %}">
+        <i class="fas fa-clipboard-list"></i>
+        <span>Change Requests</span>
+        {% with pending=pending_change_count %}
+        {% if pending %}<span class="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ pending }}</span>{% endif %}
+        {% endwith %}
+      </a>
       <a href="{% url 'settings' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        Settings
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
       </a>
+
+      {% elif is_teacher %}
+      <!-- ══ TEACHER NAV ══ with font awesome -->
+      <a href="{% url 'teacher_dashboard' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+        <i class="fas fa-chalkboard"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="{% url 'teacher_scanner' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_scanner' %}active{% endif %}">
+        <i class="fas fa-camera"></i>
+        <span>Live Scanner</span>
+      </a>
+      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
+        <i class="fas fa-book-open text-[10px]"></i>
+        <span>My Classes</span>
+      </div>
+      <a href="{% url 'teacher_students' %}"
+         class="sidebar-link {% if request.resolver_match.url_name in 'teacher_students,teacher_student_detail' %}active{% endif %}">
+        <i class="fas fa-user-graduate"></i>
+        <span>My Students</span>
+      </a>
+      <a href="{% url 'teacher_reports' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_reports' %}active{% endif %}">
+        <i class="fas fa-chart-simple"></i>
+        <span>Reports</span>
+      </a>
+      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
+        <i class="fas fa-bolt text-[10px]"></i>
+        <span>Actions</span>
+      </div>
+      <a href="{% url 'teacher_change_request' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_change_request' %}active{% endif %}">
+        <i class="fas fa-exchange-alt"></i>
+        <span>Request Change</span>
+      </a>
+
+      {% elif is_student %}
+      <!-- ══ STUDENT NAV ══ -->
+      <a href="{% url 'student_dashboard' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
+        <i class="fas fa-id-card"></i>
+        <span>My Dashboard</span>
+      </a>
+      <a href="{% url 'student_attendance' %}"
+         class="sidebar-link {% if request.resolver_match.url_name == 'student_attendance' %}active{% endif %}">
+        <i class="fas fa-calendar-check"></i>
+        <span>Attendance History</span>
+      </a>
+      <a href="{% url 'student_report_download' %}"
+         class="sidebar-link">
+        <i class="fas fa-download"></i>
+        <span>Download Report</span>
+      </a>
+      {% endif %}
 
     </nav>
 
-    <!-- User info + logout -->
-    <div class="px-4 py-4 border-t border-primary-light">
-      <div class="flex items-center gap-3 mb-3">
-        <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-primary font-bold text-sm">
-          {{ request.user.username|first|upper }}
+    <!-- User info + actions with FontAwesome icons -->
+    <div class="px-4 py-4 border-t border-primary-light space-y-3">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full {% if is_admin %}bg-accent{% elif is_teacher %}bg-yellow-500{% else %}bg-green-500{% endif %} flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+          {% if is_admin %}<i class="fas fa-shield-alt text-primary text-sm"></i>{% elif is_teacher %}<i class="fas fa-chalkboard-user text-primary text-sm"></i>{% else %}<i class="fas fa-user text-primary text-sm"></i>{% endif %}
         </div>
-        <div>
-          <p class="text-white text-sm font-medium">{{ request.user.username }}</p>
-          <p class="text-slate-400 text-xs">Administrator</p>
+        <div class="min-w-0">
+          <p class="text-white text-sm font-medium truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
+          <p class="text-slate-400 text-xs">
+            {% if is_admin %}<i class="fas fa-crown text-[10px] mr-1"></i>Administrator
+            {% elif is_teacher %}<i class="fas fa-chalkboard text-[10px] mr-1"></i>Teacher
+            {% else %}<i class="fas fa-graduation-cap text-[10px] mr-1"></i>Student{% endif %}
+          </p>
         </div>
       </div>
+      <a href="{% url 'password_change' %}"
+         class="flex items-center gap-2 text-slate-400 hover:text-white text-xs transition-colors">
+        <i class="fas fa-key text-xs"></i>
+        <span>Change Password</span>
+      </a>
       <a href="{% url 'logout' %}"
-         class="w-full flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-        </svg>
-        Sign out
+         class="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Sign out</span>
       </a>
     </div>
   </aside>
 
   <!-- Main content -->
   <main class="ml-64 flex-1 flex flex-col min-h-screen">
-    <!-- Top bar -->
     <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
       <div>
         <h2 class="font-semibold text-slate-800 text-lg">{% block page_title %}Dashboard{% endblock %}</h2>
@@ -192,15 +259,27 @@
       </div>
       <div class="flex items-center gap-3">
         {% block header_actions %}{% endblock %}
+        <div class="text-slate-500 hover:text-primary transition-colors cursor-pointer">
+          <i class="far fa-bell"></i>
+        </div>
       </div>
     </header>
-
-    <!-- Page body -->
     <div class="flex-1 p-8">
       {% block content %}{% endblock %}
     </div>
   </main>
 
   {% block extra_js %}{% endblock %}
+  <!-- small script to keep active icon colors consistent on hover (fontawesome handled via CSS) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // ensure any active link icons have proper color (handled by CSS already)
+      // additional helper: if any dynamic classes appear,
+      const activeLinks = document.querySelectorAll('.sidebar-link.active i');
+      activeLinks.forEach(icon => {
+        icon.style.color = '#1e3a5f';
+      });
+    });
+  </script>
 </body>
 </html>

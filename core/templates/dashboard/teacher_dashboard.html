@@ -1,0 +1,173 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Teacher Dashboard — ABIT Attendance{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}{{ today|date:"l, F j, Y" }} · {{ profile.assigned_classes|join:", " }}{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'teacher_export_excel' %}?date={{ today|date:'Y-m-d' }}"
+     class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-file-excel text-sm"></i>
+    Export Today
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Read-only banner -->
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-6 flex items-center gap-3 text-sm text-amber-800">
+  <i class="fas fa-info-circle text-amber-500 text-sm flex-shrink-0"></i>
+  <span>You have <strong>read-only</strong> access. To request a data change, use <a href="{% url 'teacher_change_request' %}" class="underline font-semibold">Request Change</a>.</span>
+  {% if pending_requests %}
+    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ pending_requests }} pending</span>
+  {% endif %}
+</div>
+
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+  <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-users text-blue-600 text-xl"></i>
+    </div>
+    <div>
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">My Students</p>
+      <p class="text-2xl font-bold text-slate-800">{{ stats.total_students }}</p>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+    <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-check-circle text-green-600 text-xl"></i>
+    </div>
+    <div>
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Present Today</p>
+      <p class="text-2xl font-bold text-green-600">{{ stats.present_today }}</p>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+    <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-times-circle text-red-500 text-xl"></i>
+    </div>
+    <div>
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Absent Today</p>
+      <p class="text-2xl font-bold text-red-500">{{ stats.absent_today }}</p>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+    <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-clock text-yellow-600 text-xl"></i>
+    </div>
+    <div>
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Late Today</p>
+      <p class="text-2xl font-bold text-yellow-600">{{ stats.late_today }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+  <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+    <h3 class="font-semibold text-slate-800 mb-1">
+      <i class="fas fa-chart-line text-primary mr-2 text-sm"></i>
+      Weekly Attendance Trend
+    </h3>
+    <p class="text-slate-400 text-xs mb-4">Last 7 days · All classes</p>
+    <canvas id="trendChart" height="100"></canvas>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+    <h3 class="font-semibold text-slate-800 mb-1">
+      <i class="fas fa-chart-pie text-primary mr-2 text-sm"></i>
+      Today's Overview
+    </h3>
+    <p class="text-slate-400 text-xs mb-4">{{ today|date:"F j, Y" }}</p>
+    <div class="flex-1 flex items-center justify-center">
+      <canvas id="todayDonut" width="160" height="160"></canvas>
+    </div>
+    <div class="flex justify-around mt-4 text-center">
+      <div><i class="fas fa-circle text-green-500 text-xs mx-auto mb-1 block"></i><p class="text-xs text-slate-500">Present</p><p class="font-bold text-slate-800">{{ stats.present_today }}</p></div>
+      <div><i class="fas fa-circle text-red-400 text-xs mx-auto mb-1 block"></i><p class="text-xs text-slate-500">Absent</p><p class="font-bold text-slate-800">{{ stats.absent_today }}</p></div>
+      <div><i class="fas fa-circle text-yellow-400 text-xs mx-auto mb-1 block"></i><p class="text-xs text-slate-500">Late</p><p class="font-bold text-slate-800">{{ stats.late_today }}</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Class breakdown -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h3 class="font-semibold text-slate-800">
+        <i class="fas fa-chalkboard text-primary mr-2 text-sm"></i>
+        Class-wise Attendance
+      </h3>
+      <p class="text-slate-500 text-xs mt-1">{{ today|date:"F j, Y" }}</p>
+    </div>
+    <a href="{% url 'teacher_reports' %}" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+      Full report <i class="fas fa-arrow-right text-xs"></i>
+    </a>
+  </div>
+  {% if class_report %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-slate-100">
+          <th class="text-left text-slate-500 font-medium pb-3 pr-4"><i class="fas fa-book-open mr-1 text-xs"></i> Class</th>
+          <th class="text-center text-slate-500 font-medium pb-3 px-4"><i class="fas fa-users mr-1 text-xs"></i> Total</th>
+          <th class="text-center text-slate-500 font-medium pb-3 px-4"><i class="fas fa-check-circle mr-1 text-xs"></i> Present</th>
+          <th class="text-center text-slate-500 font-medium pb-3 px-4"><i class="fas fa-times-circle mr-1 text-xs"></i> Absent</th>
+          <th class="text-center text-slate-500 font-medium pb-3 px-4"><i class="fas fa-clock mr-1 text-xs"></i> Late</th>
+          <th class="text-left text-slate-500 font-medium pb-3 pl-4"><i class="fas fa-chart-simple mr-1 text-xs"></i> Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in class_report %}
+        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+          <td class="py-3 pr-4 font-medium text-slate-800">{{ row.class }}</td>
+          <td class="py-3 px-4 text-center text-slate-600">{{ row.total }}</td>
+          <td class="py-3 px-4 text-center text-green-600 font-medium">{{ row.present }}</td>
+          <td class="py-3 px-4 text-center text-red-500 font-medium">{{ row.absent }}</td>
+          <td class="py-3 px-4 text-center text-yellow-600 font-medium">{{ row.late }}</td>
+          <td class="py-3 pl-4">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-slate-100 rounded-full h-1.5 w-24">
+                <div class="h-1.5 rounded-full {% if row.percentage >= 75 %}bg-green-500{% elif row.percentage >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}" {style="width: {{ row.percentage }}%;"}></div>
+              </div>
+              <span class="text-xs font-semibold {% if row.percentage >= 75 %}text-green-600{% elif row.percentage >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">{{ row.percentage }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-center py-10 text-slate-400 text-sm">
+    <i class="fas fa-chart-simple mr-2"></i> No attendance data for today yet.
+  </p>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: "{{ trend_labels|safe }}",
+      datasets: [
+        { label:'Present', data:"{{ trend_present|safe }}", borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.08)', tension:.4, fill:true, pointBackgroundColor:'#22c55e', pointRadius:4 },
+        { label:'Absent',  data:"{{ trend_absent|safe }}",  borderColor:'#f87171', backgroundColor:'rgba(248,113,113,.08)', tension:.4, fill:true, pointBackgroundColor:'#f87171', pointRadius:4 },
+      ],
+    },
+    options: { responsive:true, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f1f5f9'}},x:{grid:{display:false}}} },
+  });
+
+  new Chart(document.getElementById('todayDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Present','Absent','Late'],
+      datasets: "[{ data:[Math.max(0,{{ stats.present_today }}-{{ stats.late_today }}),{{ stats.absent_today }},{{ stats.late_today }}]", backgroundColor:"['#22c55e','#f87171','#fbbf24'], borderWidth:0, hoverOffset:6 }]",
+    },
+    options: { cutout:'72%', plugins:{legend:{display:false}} },
+  });
+</script>
+{% endblock %}

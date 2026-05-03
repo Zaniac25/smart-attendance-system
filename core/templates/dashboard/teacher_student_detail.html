@@ -1,0 +1,117 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ student.name }} — ABIT Attendance{% endblock %}
+{% block page_title %}{{ student.name }}{% endblock %}
+{% block page_subtitle %}{{ student.student_class }} · ID: {{ student.student_id }} · Read-only{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'teacher_change_request' %}"
+     class="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    Request Change for This Student
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+    <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">30-Day Present</p>
+    <p class="text-3xl font-bold text-green-600">{{ trend.present_count }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+    <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">Absent</p>
+    <p class="text-3xl font-bold text-red-500">{{ trend.absent_count }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+    <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">Late</p>
+    <p class="text-3xl font-bold text-yellow-500">{{ trend.late_count }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+    <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">Attendance %</p>
+    <p class="text-3xl font-bold {% if trend.percentage >= 75 %}text-green-600{% elif trend.percentage >= 50 %}text-yellow-500{% else %}text-red-500{% endif %}">{{ trend.percentage }}%</p>
+  </div>
+</div>
+
+<!-- Heatmap -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6 mb-6">
+  <h3 class="font-semibold text-slate-800 mb-4">30-Day Attendance Calendar</h3>
+  <div class="flex flex-wrap gap-2" id="heatmap"></div>
+  <div class="flex items-center gap-4 mt-4 text-xs text-slate-500">
+    <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-green-500"></div> Present</div>
+    <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-yellow-400"></div> Late</div>
+    <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-red-400"></div> Absent</div>
+    <div class="flex items-center gap-1.5"><div class="w-4 h-4 rounded bg-slate-200"></div> No data</div>
+  </div>
+</div>
+
+<!-- Profile + Records -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+    <h3 class="font-semibold text-slate-800 mb-4">Student Profile</h3>
+    <div class="space-y-3 text-sm">
+      <div class="flex justify-between"><span class="text-slate-500">Student ID</span><span class="font-mono font-medium">{{ student.student_id }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Name</span><span class="font-medium">{{ student.name }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Class</span><span class="text-slate-600">{{ student.student_class }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Email</span><span class="text-slate-600">{{ student.email|default:"—" }}</span></div>
+      <div class="flex justify-between">
+        <span class="text-slate-500">Face Enrolled</span>
+        <span class="{% if student.face_enrolled %}text-green-600{% else %}text-slate-400{% endif %} font-medium">{{ student.face_enrolled|yesno:"Yes,No" }}</span>
+      </div>
+    </div>
+    <div class="mt-5 pt-4 border-t border-slate-100">
+      <p class="text-xs text-slate-400 mb-2">Need to change something?</p>
+      <a href="{% url 'teacher_change_request' %}"
+         class="block text-center bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 rounded-lg transition-colors">
+        Submit Change Request →
+      </a>
+    </div>
+  </div>
+
+  <div class="lg:col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+    <h3 class="font-semibold text-slate-800 mb-4">Recent Attendance (Last 10)</h3>
+    <table class="w-full text-sm">
+      <thead class="text-slate-500 text-xs uppercase tracking-wide border-b border-slate-100">
+        <tr>
+          <th class="text-left pb-2 pr-4">Date</th>
+          <th class="text-left pb-2 pr-4">Time</th>
+          <th class="text-left pb-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in recent_records %}
+        <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="py-2 pr-4 text-slate-700">{{ record.date|date:"M j, Y" }}</td>
+          <td class="py-2 pr-4 font-mono text-slate-600">{{ record.time|time:"g:i A" }}</td>
+          <td class="py-2">
+            {% if record.is_late %}
+              <span class="bg-yellow-100 text-yellow-700 text-xs font-medium px-2 py-0.5 rounded-full">Late</span>
+            {% else %}
+              <span class="bg-green-100 text-green-700 text-xs font-medium px-2 py-0.5 rounded-full">On Time</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="py-8 text-center text-slate-400">No records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const labels   = "{{ labels_json|safe }}";
+  const statuses = "{{ statuses_json|safe }}";
+  const colorMap = { present:'#22c55e', late:'#fbbf24', absent:'#f87171' };
+  const heatmap  = document.getElementById('heatmap');
+  labels.forEach((label, i) => {
+    const box = document.createElement('div');
+    box.title = `${label}: ${statuses[i]}`;
+    box.style.cssText = `width:28px;height:28px;border-radius:5px;background:${colorMap[statuses[i]]||'#e2e8f0'};cursor:default;`;
+    heatmap.appendChild(box);
+  });
+</script>
+{% endblock %}
