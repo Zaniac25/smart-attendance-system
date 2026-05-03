@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Attendance History — ABIT Attendance{% endblock %}
+{% block page_title %}Attendance History{% endblock %}
+{% block page_subtitle %}{{ student.name }} · {{ student.student_class }}{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'student_report_download' %}"
+     class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-file-excel text-sm"></i>
+    Download Excel
+  </a>
+{% endblock %}
+
+{% block content %}
+
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+    <i class="fas fa-database text-slate-400 text-xl mb-2 block"></i>
+    <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">Total Records</p>
+    <p class="text-3xl font-bold text-slate-800">{{ records|length }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-green-100 shadow-sm p-5 text-center">
+    <i class="fas fa-check-circle text-green-500 text-xl mb-2 block"></i>
+    <p class="text-xs text-green-600 uppercase tracking-wide font-medium mb-1">On Time</p>
+    <p class="text-3xl font-bold text-green-600">{{ records|length|add:"-0" }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-yellow-100 shadow-sm p-5 text-center">
+    <i class="fas fa-clock text-yellow-500 text-xl mb-2 block"></i>
+    <p class="text-xs text-yellow-600 uppercase tracking-wide font-medium mb-1">Late (90d)</p>
+    <p class="text-3xl font-bold text-yellow-500">{{ trend.late_count }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5 text-center">
+    <i class="fas fa-chart-line text-blue-500 text-xl mb-2 block"></i>
+    <p class="text-xs text-blue-600 uppercase tracking-wide font-medium mb-1">Overall %</p>
+    <p class="text-3xl font-bold {% if student.attendance_percentage >= 75 %}text-green-600{% elif student.attendance_percentage >= 50 %}text-yellow-500{% else %}text-red-500{% endif %}">
+      {{ student.attendance_percentage }}%
+    </p>
+  </div>
+</div>
+
+
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+  <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+    <h3 class="font-semibold text-slate-800">
+      <i class="fas fa-history text-primary mr-2"></i> Complete Attendance History
+    </h3>
+    <span class="text-xs text-slate-400">
+      <i class="fas fa-calendar-alt mr-1"></i> {{ records|length }} record{{ records|length|pluralize }}
+    </span>
+  </div>
+
+  {% if records %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-6 py-3">
+            <i class="far fa-calendar-alt mr-1"></i> Date
+          </th>
+          <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+            <i class="far fa-sun mr-1"></i> Day
+          </th>
+          <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+            <i class="far fa-clock mr-1"></i> Time
+          </th>
+          <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+            <i class="fas fa-chart-simple mr-1"></i> Status
+          </th>
+          <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+            <i class="fas fa-qrcode mr-1"></i> Source
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+          <td class="px-6 py-3 font-medium text-slate-800">{{ record.date|date:"M j, Y" }}</td>
+          <td class="px-4 py-3 text-slate-500">{{ record.date|date:"l" }}</td>
+          <td class="px-4 py-3 font-mono text-slate-600">{{ record.time|time:"g:i A" }}</td>
+          <td class="px-4 py-3">
+            {% if record.is_late %}
+              <span class="bg-yellow-100 text-yellow-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                <i class="fas fa-clock mr-1 text-xs"></i> Late
+              </span>
+            {% else %}
+              <span class="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                <i class="fas fa-check-circle mr-1 text-xs"></i> On Time
+              </span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            {% if record.is_manual %}
+              <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                <i class="fas fa-pen-alt mr-1 text-xs"></i> Manual
+              </span>
+            {% else %}
+              <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                <i class="fas fa-qrcode mr-1 text-xs"></i> Scanner
+              </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-16 text-slate-400">
+    <i class="fas fa-calendar-times fa-3x mx-auto mb-3 opacity-40"></i>
+    <p class="text-sm">No attendance records found.</p>
+    <p class="text-xs mt-1"><i class="fas fa-info-circle mr-1"></i> Your attendance history will appear here after your first scan.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
