@@ -35,4 +35,16 @@ urlpatterns = [
     path('api/students/', views.APIStudentList.as_view(), name='api_students'),
     path('api/students/<str:student_id>/', views.APIStudentDetail.as_view(), name='api_student_detail'),
     path('api/reports/daily/', views.APIDailyReport.as_view(), name='api_daily_report'),
+    
+    path('teacher/dashboard/', views.TeacherDashboardView.as_view(), name='teacher_dashboard'),
+    path('teacher/students/', views.TeacherStudentsView.as_view(), name='teacher_students'),
+    path('teacher/reports/', views.TeacherReportsView.as_view(), name='teacher_reports'),
+    path('teacher/scanner/', views.TeacherScannerView.as_view(), name='teacher_scanner'),
+    path('teacher/change-requests/', views.TeacherChangeRequestView.as_view(), name='teacher_change_request'),
+    
+    path('student/dashboard/', views.StudentDashboardView.as_view(), name='student_dashboard'),
+    path('student/attendance/', views.StudentAttendanceView.as_view(), name='student_attendance'),
+    path('student/report/download/', views.StudentReportDownloadView.as_view(), name='student_report_download'),
+
+    path('admin/change-requests/', views.AdminChangeRequestsView.as_view(), name='admin_change_requests'),
 ]
