@@ -12,20 +12,21 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from datetime import time
+from django.contrib.auth.models import User
 
 
 class Student(models.Model):
     student_id    = models.CharField(max_length=20, unique=True, db_index=True)
-    name          = models.CharField(max_length=100)
-    course        = models.CharField(max_length=50, blank=True, default='')   # e.g. Btech
-    branch        = models.CharField(max_length=50, blank=True, default='')   # e.g. CSE
-    section       = models.CharField(max_length=20, blank=True, default='')   # e.g. A
-    student_class = models.CharField(max_length=100)                          # auto: "Btech CSE Sec A"
-    email         = models.EmailField(blank=True, null=True)
+    name = models.CharField(max_length=100)
+    course = models.CharField(max_length=50, blank=True, default='')   # e.g. Btech
+    branch = models.CharField(max_length=50, blank=True, default='')   # e.g. CSE
+    section = models.CharField(max_length=20, blank=True, default='')   # e.g. A
+    student_class = models.CharField(max_length=100)                          
+    email = models.EmailField(blank=True, null=True)
     face_enrolled = models.BooleanField(default=False)
     qr_generated  = models.BooleanField(default=False)
-    created_at    = models.DateTimeField(auto_now_add=True)
-    updated_at    = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['course', 'branch', 'section', 'name']
@@ -130,3 +131,22 @@ class AttendanceSettings(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+    
+
+class TeacherProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
+    assigned_classes = models.JSONField(default=list)
+    
+    def __str__(self):
+        return f"Teacher: {self.user.username}"
+    
+    def get_students(self):
+        return Student.objects.filter(student_class__in=self.assigned_classes)
+    
+
+class StudentProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='user_profile')
+    
+    def __str__(self):
+        return f"Student: {self.student.name}"
