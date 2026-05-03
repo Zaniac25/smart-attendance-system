@@ -1,0 +1,221 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Request Change — ABIT Attendance{% endblock %}
+{% block page_title %}Request Data Change{% endblock %}
+{% block page_subtitle %}Submit a request to admin for attendance or student info corrections{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="bg-primary px-6 py-4">
+        <h3 class="text-white font-semibold">
+          <i class="fas fa-pen-alt mr-2 text-accent"></i> New Request
+        </h3>
+        <p class="text-blue-300 text-xs mt-0.5">Admin will review and act on your request</p>
+      </div>
+      <div class="p-6 space-y-4">
+
+        <div id="formStatus" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="fas fa-user-graduate mr-1 text-slate-400"></i> Student <span class="text-red-500">*</span>
+          </label>
+          <select id="studentSelect"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">— Select student —</option>
+            {% for student in students %}
+            <option value="{{ student.student_id }}">{{ student.name }} ({{ student.student_id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="fas fa-tag mr-1 text-slate-400"></i> Request Type <span class="text-red-500">*</span>
+          </label>
+          <select id="requestType"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onchange="toggleDateField()">
+            <option value="">— Select type —</option>
+            <option value="attendance">📋 Attendance Change</option>
+            <option value="student_info">✏️ Student Info Change</option>
+            <option value="other">💬 Other</option>
+          </select>
+        </div>
+
+        <div id="dateField" class="hidden">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="far fa-calendar-alt mr-1 text-slate-400"></i> Date Affected
+          </label>
+          <input type="date" id="dateAffected"
+                 class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <p class="text-xs text-slate-400 mt-1"><i class="fas fa-info-circle mr-1"></i> Which date needs correction?</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="fas fa-align-left mr-1 text-slate-400"></i> Description <span class="text-red-500">*</span>
+          </label>
+          <textarea id="description" rows="4" placeholder="Describe exactly what needs to change and why..."
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+          <p class="text-xs text-slate-400 mt-1"><i class="fas fa-lightbulb mr-1"></i> Be specific — admin will make the change based on this.</p>
+        </div>
+
+        <button onclick="submitRequest()"
+                class="w-full bg-primary hover:bg-blue-900 text-white font-semibold
+                       py-2.5 rounded-lg transition-colors text-sm shadow-md">
+          <i class="fas fa-paper-plane mr-2"></i> Submit Request
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lg:col-span-2">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-semibold text-slate-800">
+          <i class="fas fa-history text-primary mr-2"></i> My Requests
+        </h3>
+        <span class="text-xs text-slate-400"><i class="far fa-file-alt mr-1"></i> {{ requests|length }} total</span>
+      </div>
+
+      {% if requests %}
+      <div class="divide-y divide-slate-50">
+        {% for req in requests %}
+        <div class="px-6 py-4 hover:bg-slate-50 transition-colors">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <!-- Status badge -->
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full
+                  {% if req.status == 'pending' %}bg-amber-100 text-amber-700
+                  {% elif req.status == 'approved' %}bg-green-100 text-green-700
+                  {% else %}bg-red-100 text-red-600{% endif %}">
+                  <i class="fas {% if req.status == 'pending' %}fa-clock{% elif req.status == 'approved' %}fa-check-circle{% else %}fa-times-circle{% endif %} mr-1 text-xs"></i>
+                  {{ req.get_status_display }}
+                </span>
+                <!-- Type badge -->
+                <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                  <i class="fas {% if req.request_type == 'attendance' %}fa-calendar-check{% elif req.request_type == 'student_info' %}fa-user-edit{% else %}fa-question{% endif %} mr-1 text-xs"></i>
+                  {{ req.get_request_type_display }}
+                </span>
+              </div>
+
+              <p class="text-sm font-medium text-slate-800">
+                <i class="fas fa-id-card text-slate-400 mr-1 text-xs"></i> Student ID: <span class="font-mono">{{ req.student_id }}</span>
+                {% if req.date_affected %}
+                  · <i class="far fa-calendar-alt text-blue-500 mr-1 text-xs"></i><span class="text-blue-600">{{ req.date_affected|date:"M j, Y" }}</span>
+                {% endif %}
+              </p>
+              <p class="text-xs text-slate-500 mt-1 line-clamp-2">
+                <i class="fas fa-quote-left mr-1 text-slate-300 text-[10px]"></i> {{ req.description }}
+              </p>
+
+              {% if req.admin_note %}
+              <div class="mt-2 bg-slate-50 rounded-lg px-3 py-2 border-l-2
+                {% if req.status == 'approved' %}border-green-400{% else %}border-red-400{% endif %}">
+                <p class="text-xs text-slate-600">
+                  <i class="fas fa-user-shield mr-1 text-primary"></i><span class="font-semibold">Admin note:</span> {{ req.admin_note }}
+                </p>
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="text-right flex-shrink-0">
+              <p class="text-xs text-slate-400">
+                <i class="far fa-calendar mr-1"></i> {{ req.created_at|date:"M j, Y" }}
+              </p>
+              <p class="text-xs text-slate-400">
+                <i class="far fa-clock mr-1"></i> {{ req.created_at|time:"g:i A" }}
+              </p>
+              {% if req.resolved_at %}
+              <p class="text-xs text-slate-300 mt-1">
+                <i class="fas fa-check-circle mr-1 text-green-400 text-[10px]"></i> Resolved {{ req.resolved_at|date:"M j" }}
+              </p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-16 text-slate-400">
+        <i class="fas fa-inbox fa-3x mb-3 opacity-40"></i>
+        <p class="text-sm">No requests submitted yet.</p>
+        <p class="text-xs mt-1">Use the form to request a data change from admin.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+function toggleDateField() {
+  const type = document.getElementById('requestType').value;
+  document.getElementById('dateField').classList.toggle('hidden', type !== 'attendance');
+}
+
+async function submitRequest() {
+  const student_id   = document.getElementById('studentSelect').value;
+  const request_type = document.getElementById('requestType').value;
+  const description  = document.getElementById('description').value.trim();
+  const date_affected = document.getElementById('dateAffected').value;
+
+  if (!student_id)   { showStatus('Please select a student.', false); return; }
+  if (!request_type) { showStatus('Please select a request type.', false); return; }
+  if (!description)  { showStatus('Please describe what needs to change.', false); return; }
+
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('student_id',    student_id);
+  fd.append('request_type',  request_type);
+  fd.append('description',   description);
+  fd.append('date_affected', date_affected);
+
+  try {
+    const resp = await fetch('{% url "teacher_change_request" %}', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.success) {
+      showStatus('✓ Request submitted successfully. Admin will review it.', true);
+      // Reset form
+      document.getElementById('studentSelect').value = '';
+      document.getElementById('requestType').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('dateAffected').value = '';
+      document.getElementById('dateField').classList.add('hidden');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showStatus(data.message || 'Something went wrong.', false);
+    }
+  } catch (e) {
+    showStatus('Network error — please try again.', false);
+  }
+}
+
+function showStatus(msg, success) {
+  const el = document.getElementById('formStatus');
+  el.className = `rounded-lg px-4 py-3 text-sm font-medium ${
+    success
+      ? 'bg-green-50 border border-green-200 text-green-800'
+      : 'bg-red-50 border border-red-200 text-red-700'
+  }`;
+  el.innerHTML = success 
+    ? `<i class="fas fa-check-circle mr-2"></i>${msg}` 
+    : `<i class="fas fa-exclamation-triangle mr-2"></i>${msg}`;
+  el.classList.remove('hidden');
+  if (success) setTimeout(() => el.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}
