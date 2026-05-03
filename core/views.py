@@ -183,7 +183,7 @@ class LoginView(View):
         if user:
             login(request, user)
             role = get_role(user)
-            return redirect(ROLE_HOME.get(role, 'dashboard'))
+            return redirect(ROLE_HOME.get(get_role(user), 'dashboard'))
         return render(request, 'dashboard/login.html', {'error': 'Invalid credentials'})
 
 
@@ -251,7 +251,7 @@ class ProcessFrameView(View):
             if len(parts) != 3:
                 return JsonResponse({'status': 'invalid_qr'})
 
-            student_id    = parts[0].strip()
+            student_id = parts[0].strip()
             student_name  = parts[1].strip()
             student_class = parts[2].strip()
 
@@ -260,6 +260,18 @@ class ProcessFrameView(View):
             except Student.DoesNotExist:
                 return JsonResponse({'status': 'unknown_student',
                                      'message': f'Student {student_id} not in database'})
+            
+            # Teacher scope guard
+            if is_teacher(request.user):
+                try:
+                    teacher_profile = TeacherProfile.objects.get(user=request.user)
+                    if not teacher_profile.get_students().filter(student_id=student_id).exists():
+                        return JsonResponse({
+                            'status':  'error',
+                            'message': f'Student {student_id} is not in your assigned classes.',
+                        })
+                except TeacherProfile.DoesNotExist:
+                    return JsonResponse({'status': 'error', 'message': 'Teacher profile not configured.'})
 
             # Check duplicate before moving to face phase
             if Attendance.objects.filter(student=student, date=timezone.localdate()).exists():
@@ -1334,190 +1346,380 @@ class APITodayStatus(APIView):
         marked = Attendance.objects.filter(
             student__student_id=student_id, date=timezone.localdate()).exists()
         return Response({'student_id': student_id, 'marked_today': marked})
-    
+
+
+
+
 
 class TeacherRequiredMixin(UserPassesTestMixin):
+    """Restrict view to Teacher group members only."""
     def test_func(self):
         return is_teacher(self.request.user)
+
     def handle_no_permission(self):
         return redirect('login')
 
-class TeacherDashboardView(LoginRequiredMixin, TeacherRequiredMixin, View):
+
+class StudentRequiredMixin(UserPassesTestMixin):
+    """Restrict view to Student group members only."""
+    def test_func(self):
+        return is_student(self.request.user)
+
+    def handle_no_permission(self):
+        return redirect('login')
+
+
+class AdminRequiredMixin(UserPassesTestMixin):
+    """Restrict view to superusers only."""
+    def test_func(self):
+        return is_admin(self.request.user)
+
+    def handle_no_permission(self):
+        return redirect('login')
+
+
+ 
+# TEACHER VIEWS
+ 
+
+@method_decorator(login_required, name='dispatch')
+class TeacherDashboardView(TeacherRequiredMixin, View):
     def get(self, request):
-        profile = get_object_or_404(TeacherProfile, user=request.user)
-        today   = timezone.localdate()
-        
-        # Only classes this teacher owns
-        student_ids = list(profile.get_students().values_list('student_id', flat=True))
-        
+        profile     = get_object_or_404(TeacherProfile, user=request.user)
+        today       = timezone.localdate()
+        student_ids = profile.get_student_ids()
+
+        # Scoped stats
+        total   = len(student_ids)
+        present = Attendance.objects.filter(date=today, student__student_id__in=student_ids).count()
+        late    = Attendance.objects.filter(date=today, student__student_id__in=student_ids, is_late=True).count()
+
+        stats = {
+            'total_students': total,
+            'present_today':  present,
+            'absent_today':   max(0, total - present),
+            'late_today':     late,
+        }
+
+        # Weekly trend scoped to teacher's students
+        trend = get_weekly_trend(7)   # reuse existing — it's global, acceptable for teacher view
+        cls_report = get_classwise_report(today, student_ids=student_ids)
+
+        # Pending change requests from this teacher
+        pending_requests = ChangeRequest.objects.filter(
+            requested_by=request.user, status='pending'
+        ).count()
+
         context = {
-            'profile':      profile,
-            'stats':        _get_teacher_stats(student_ids, today),
-            'class_report': get_classwise_report(today, student_ids=student_ids),
-            'today':        today,
-            **{k: json.dumps(v) for k, v in [
-                ('trend_labels',  get_weekly_trend(7)['labels']),
-                ('trend_present', get_weekly_trend(7)['present']),
-                ('trend_absent',  get_weekly_trend(7)['absent']),
-            ]},
+            'profile': profile,
+            'stats': stats,
+            'class_report': cls_report,
+            'today': today,
+            'pending_requests': pending_requests,
+            'trend_labels': json.dumps(trend['labels']),
+            'trend_present': json.dumps(trend['present']),
+            'trend_absent': json.dumps(trend['absent']),
         }
         return render(request, 'dashboard/teacher_dashboard.html', context)
 
 
-def _get_teacher_stats(student_ids, today):
-    total   = len(student_ids)
-    present = Attendance.objects.filter(date=today, student__student_id__in=student_ids).count()
-    late    = Attendance.objects.filter(date=today, student__student_id__in=student_ids, is_late=True).count()
-    return {
-        'total_students': total,
-        'present_today':  present,
-        'absent_today':   max(0, total - present),
-        'late_today':     late,
-    }
-
-
-class TeacherReportsView(LoginRequiredMixin, TeacherRequiredMixin, View):
+@method_decorator(login_required, name='dispatch')
+class TeacherStudentsView(TeacherRequiredMixin, View):
     def get(self, request):
-        profile    = get_object_or_404(TeacherProfile, user=request.user)
-        date_str   = request.GET.get('date', timezone.localdate().isoformat())
+        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        students = profile.get_students().order_by('student_class', 'name')
+
+        # Search within teacher's scope
+        q = request.GET.get('q', '').strip()
+        if q:
+            students = students.filter(name__icontains=q) | \
+                       profile.get_students().filter(student_id__icontains=q)
+
+        return render(request, 'dashboard/teacher_students.html', {
+            'profile':  profile,
+            'students': students,
+            'search':   q,
+            'total':    students.count(),
+        })
+
+
+@method_decorator(login_required, name='dispatch')
+class TeacherStudentDetailView(TeacherRequiredMixin, View):
+    """Teacher read-only view of a student detail — same data, no edit actions."""
+    def get(self, request, student_id):
+        profile = get_object_or_404(TeacherProfile, user=request.user)
+
+        # Guard: student must belong to teacher's classes
+        student = get_object_or_404(
+            Student,
+            student_id=student_id,
+            student_class__in=profile.assigned_classes
+        )
+
+        trend = get_student_trend(student_id, days=30)
+        recent_records = Attendance.objects.filter(student=student).order_by('-date')[:10]
+
+        return render(request, 'dashboard/teacher_student_detail.html', {
+            'profile': profile,
+            'student': student,
+            'trend': trend,
+            'recent_records': recent_records,
+            'statuses_json':  json.dumps(trend.get('statuses', [])),
+            'labels_json': json.dumps(trend.get('labels', [])),
+        })
+
+
+@method_decorator(login_required, name='dispatch')
+class TeacherReportsView(TeacherRequiredMixin, View):
+    def get(self, request):
+        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        date_str = request.GET.get('date', timezone.localdate().isoformat())
+
         try:
             target_date = date.fromisoformat(date_str)
         except ValueError:
             target_date = timezone.localdate()
-        
-        student_ids = list(profile.get_students().values_list('student_id', flat=True))
-        report      = get_daily_report(target_date, student_ids=student_ids)
+
+        student_ids = profile.get_student_ids()
+        report = get_daily_report(target_date, student_ids=student_ids)
         cls_report  = get_classwise_report(target_date, student_ids=student_ids)
-        
+        trend = get_weekly_trend(days=14)
+
         context = {
-            'report':       report,
-            'class_report': cls_report,
-            'date_str':     date_str,
-            'profile':      profile,
+            'profile': profile,
+            'report': report,
+            'class_report':  cls_report,
+            'date_str': date_str,
+            'trend_labels':  json.dumps(trend['labels']),
+            'trend_present': json.dumps(trend['present']),
         }
         return render(request, 'dashboard/teacher_reports.html', context)
 
 
-class TeacherScannerView(LoginRequiredMixin, TeacherRequiredMixin, View):
-    """Teacher gets same scanner page but scoped — scanner itself is frontend-only."""
+@method_decorator(login_required, name='dispatch')
+class TeacherExportExcelView(TeacherRequiredMixin, View):
+    """Teacher can export attendance for their classes only."""
+    def get(self, request):
+        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        date_str = request.GET.get('date', timezone.localdate().isoformat())
+
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            target_date = timezone.localdate()
+
+        student_ids = profile.get_student_ids()
+        report = get_daily_report(target_date, student_ids=student_ids)
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            pd.DataFrame([{
+                'Date': str(report['date']),
+                'Total': report['total_students'],
+                'Present': report['present'],
+                'Absent': report['absent'],
+                'Late': report['late'],
+                'Attendance %': f"{report['attendance_percentage']}%",
+            }]).to_excel(writer, sheet_name='Summary', index=False)
+
+            if report['present_students']:
+                pd.DataFrame([{
+                    'ID':    r.student.student_id,
+                    'Name':  r.student.name,
+                    'Class': r.student.student_class,
+                    'Time':  str(r.time),
+                    'Late':  'Yes' if r.is_late else 'No',
+                } for r in report['present_students']]).to_excel(writer, sheet_name='Present', index=False)
+
+            if report['absent_students']:
+                pd.DataFrame([{
+                    'ID':    s.student_id,
+                    'Name':  s.name,
+                    'Class': s.student_class,
+                } for s in report['absent_students']]).to_excel(writer, sheet_name='Absent', index=False)
+
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="attendance_{date_str}_teacher.xlsx"'
+        return response
+
+
+@method_decorator(login_required, name='dispatch')
+class TeacherScannerView(TeacherRequiredMixin, View):
+    """
+    Teacher gets the same scanner UI. The scanner POSTs to ProcessFrameView
+    which already handles teacher scoping when is_teacher(request.user) is True.
+    """
     def get(self, request):
         profile = get_object_or_404(TeacherProfile, user=request.user)
         return render(request, 'dashboard/teacher_scanner.html', {'profile': profile})
 
 
-class TeacherStudentsView(LoginRequiredMixin, TeacherRequiredMixin, View):
-    def get(self, request):
-        profile  = get_object_or_404(TeacherProfile, user=request.user)
-        students = profile.get_students().order_by('student_class', 'name')
-        return render(request, 'dashboard/teacher_students.html', {
-            'students': students,
-            'profile':  profile,
-        })
-        
-class TeacherChangeRequestView(LoginRequiredMixin, TeacherRequiredMixin, View):
-    """Teacher submits a change request — stored in DB, admin sees it."""
+@method_decorator(login_required, name='dispatch')
+class TeacherChangeRequestView(TeacherRequiredMixin, View):
     def get(self, request):
         profile  = get_object_or_404(TeacherProfile, user=request.user)
         requests = ChangeRequest.objects.filter(requested_by=request.user).order_by('-created_at')
+        students = profile.get_students().order_by('name')
+
         return render(request, 'dashboard/teacher_change_request.html', {
             'profile':  profile,
             'requests': requests,
+            'students': students,
         })
-    
+
     def post(self, request):
-        profile = get_object_or_404(TeacherProfile, user=request.user)
+        profile       = get_object_or_404(TeacherProfile, user=request.user)
+        student_id    = request.POST.get('student_id',    '').strip()
+        request_type  = request.POST.get('request_type',  '').strip()
+        description   = request.POST.get('description',   '').strip()
+        date_affected = request.POST.get('date_affected', '').strip() or None
+
+        # Validate student belongs to this teacher
+        if not profile.get_students().filter(student_id=student_id).exists():
+            return JsonResponse({'success': False, 'message': 'Student not in your assigned classes.'}, status=403)
+
+        if not description:
+            return JsonResponse({'success': False, 'message': 'Description is required.'}, status=400)
+
         ChangeRequest.objects.create(
             requested_by  = request.user,
-            student_id = request.POST.get('student_id', '').strip(),
-            request_type = request.POST.get('request_type', ''),   
-            description = request.POST.get('description', '').strip(),
-            date_affected = request.POST.get('date_affected', None) or None,
+            student_id    = student_id,
+            request_type  = request_type,
+            description   = description,
+            date_affected = date_affected,
         )
-        return JsonResponse({'success': True, 'message': 'Request submitted to admin.'})
+        return JsonResponse({'success': True, 'message': 'Request submitted. Admin will review it.'})
 
+
+ 
+# ADMIN — CHANGE REQUEST MANAGEMENT
+ 
 
 @method_decorator(login_required, name='dispatch')
-class AdminChangeRequestsView(View):
+class AdminChangeRequestsView(AdminRequiredMixin, View):
+    """Admin view to review and resolve teacher change requests."""
     def get(self, request):
-        if not is_admin(request.user):
-            return redirect('dashboard')
-        requests = ChangeRequest.objects.all().select_related('requested_by')
-        return render(request, 'dashboard/admin_change_requests.html', {'requests': requests})
-    
+        status_filter = request.GET.get('status', 'pending')
+        requests = ChangeRequest.objects.select_related('requested_by').all()
+        if status_filter != 'all':
+            requests = requests.filter(status=status_filter)
+
+        counts = {
+            'pending':  ChangeRequest.objects.filter(status='pending').count(),
+            'approved': ChangeRequest.objects.filter(status='approved').count(),
+            'rejected': ChangeRequest.objects.filter(status='rejected').count(),
+        }
+
+        return render(request, 'dashboard/admin_change_requests.html', {
+            'requests':      requests,
+            'counts':        counts,
+            'status_filter': status_filter,
+        })
+
     def post(self, request):
-        """Admin resolves a request."""
-        if not is_admin(request.user):
-            return JsonResponse({'success': False}, status=403)
+        """Resolve a single change request via AJAX."""
         req_id     = request.POST.get('request_id')
-        new_status = request.POST.get('status')   # 'approved' | 'rejected'
-        admin_note = request.POST.get('admin_note', '')
-        
+        new_status = request.POST.get('status')
+        admin_note = request.POST.get('admin_note', '').strip()
+
+        if new_status not in ('approved', 'rejected'):
+            return JsonResponse({'success': False, 'message': 'Invalid status.'}, status=400)
+
         cr = get_object_or_404(ChangeRequest, id=req_id)
-        cr.status     = new_status
-        cr.admin_note = admin_note
+        cr.status      = new_status
+        cr.admin_note  = admin_note
         cr.resolved_at = timezone.now()
         cr.save()
-        return JsonResponse({'success': True})
-    
 
-class StudentRequiredMixin(UserPassesTestMixin):
-    def test_func(self):
-        return is_student(self.request.user)
-    def handle_no_permission(self):
-        return redirect('login')
+        return JsonResponse({'success': True, 'message': f'Request {new_status}.'})
 
 
-class StudentDashboardView(LoginRequiredMixin, StudentRequiredMixin, View):
+ 
+# STUDENT VIEWS
+
+@method_decorator(login_required, name='dispatch')
+class StudentDashboardView(StudentRequiredMixin, View):
     def get(self, request):
         profile = get_object_or_404(StudentProfile, user=request.user)
         student = profile.student
         trend   = get_student_trend(student.student_id, days=30)
-        recent  = Attendance.objects.filter(student=student).order_by('-date')[:10]
-        
+        recent  = Attendance.objects.filter(student=student).order_by('-date')[:5]
+
         return render(request, 'dashboard/student_dashboard.html', {
             'student': student,
-            'trend':   trend,
-            'recent':  recent,
+            'trend': trend,
+            'recent': recent,
+            'statuses_json': json.dumps(trend.get('statuses', [])),
+            'labels_json':   json.dumps(trend.get('labels', [])),
         })
 
 
-class StudentAttendanceView(LoginRequiredMixin, StudentRequiredMixin, View):
+@method_decorator(login_required, name='dispatch')
+class StudentAttendanceView(StudentRequiredMixin, View):
     def get(self, request):
         profile = get_object_or_404(StudentProfile, user=request.user)
         student = profile.student
-        
-        # Full history, paginated
         records = Attendance.objects.filter(student=student).order_by('-date')
-        trend   = get_student_trend(student.student_id, days=90)
-        
+        trend = get_student_trend(student.student_id, days=90)
+        on_time_count = records.filter(is_late=False).count()
+        late_count = records.filter(is_late=True).count()
+
         return render(request, 'dashboard/student_attendance.html', {
             'student': student,
             'records': records,
-            'trend':   trend,
+            'trend': trend,
+            'on_time_count': on_time_count,
+            'late_count': late_count,
         })
 
 
-class StudentReportDownloadView(LoginRequiredMixin, StudentRequiredMixin, View):
-    """Generate Excel attendance report for the logged-in student."""
+@method_decorator(login_required, name='dispatch')
+class StudentReportDownloadView(StudentRequiredMixin, View):
+    """Generate and download the student's full attendance history as Excel."""
     def get(self, request):
         profile = get_object_or_404(StudentProfile, user=request.user)
         student = profile.student
         records = Attendance.objects.filter(student=student).order_by('-date')
-        
+
+        if not records.exists():
+            # Redirect back with a message rather than serving an empty file
+            return redirect('student_attendance')
+
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Summary sheet
+            trend = get_student_trend(student.student_id, days=365)
+            pd.DataFrame([{
+                'Student ID':        student.student_id,
+                'Name':              student.name,
+                'Class':             student.student_class,
+                'Total Present':     trend.get('present_count', 0),
+                'Total Late':        trend.get('late_count', 0),
+                'Attendance %':      f"{student.attendance_percentage}%",
+                'Report Generated':  str(timezone.localdate()),
+            }]).to_excel(writer, sheet_name='Summary', index=False)
+
+            # Full history sheet
             pd.DataFrame([{
                 'Date':   str(r.date),
+                'Day':    r.date.strftime('%A'),
                 'Time':   str(r.time),
                 'Status': 'Late' if r.is_late else 'Present',
                 'Source': 'Manual' if r.is_manual else 'Scanner',
-            } for r in records]).to_excel(writer, sheet_name='Attendance', index=False)
-        
+            } for r in records]).to_excel(writer, sheet_name='Full History', index=False)
+
         output.seek(0)
         safe_name = student.name.replace(' ', '_')
         response  = HttpResponse(
             output.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = f'attachment; filename="Attendance_{safe_name}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="Attendance_{safe_name}_{student.student_id}.xlsx"'
         return response
+
+
+ 

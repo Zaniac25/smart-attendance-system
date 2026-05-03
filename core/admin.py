@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import *
+from django.utils import timezone as tz
 
 
 @admin.register(Student)
@@ -35,27 +36,39 @@ class AttendanceSettingsAdmin(admin.ModelAdmin):
         return False  # Singleton — never delete
     
 
+
 @admin.register(TeacherProfile)
 class TeacherProfileAdmin(admin.ModelAdmin):
-    list_display  = ['user', 'assigned_classes']
-    # Admin creates teacher: picks a User, assigns class strings
-
+    list_display  = ['user', 'display_classes']
+    search_fields = ['user__username']
+ 
+    def display_classes(self, obj):
+        return ', '.join(obj.assigned_classes) if obj.assigned_classes else '—'
+    display_classes.short_description = 'Assigned Classes'
+ 
+ 
 @admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'student']
-    
+    list_display  = ['user', 'student']
+    search_fields = ['user__username', 'student__name', 'student__student_id']
+    raw_id_fields = ['student']
+ 
+ 
 @admin.register(ChangeRequest)
 class ChangeRequestAdmin(admin.ModelAdmin):
-    list_display  = ['requested_by', 'student_id', 'request_type', 'status', 'created_at']
+    list_display = ['requested_by', 'student_id', 'request_type', 'status', 'created_at', 'resolved_at']
     list_filter = ['status', 'request_type']
-    actions = ['approve_requests', 'reject_requests']
-    
-    def approve_requests(self, request, queryset):
-        from django.utils import timezone as tz
-        queryset.update(status='approved', resolved_at=tz.now())
-    approve_requests.short_description = "Approve selected requests"
-    
-    def reject_requests(self, request, queryset):
-        from django.utils import timezone as tz
-        queryset.update(status='rejected', resolved_at=tz.now())
-    reject_requests.short_description = "Reject selected requests"
+    search_fields  = ['student_id', 'requested_by__username', 'description']
+    readonly_fields = ['requested_by', 'student_id', 'request_type', 'description',
+                       'date_affected', 'created_at']
+    actions        = ['approve_selected', 'reject_selected']
+ 
+    def approve_selected(self, request, queryset):
+        queryset.filter(status='pending').update(status='approved', resolved_at=tz.now())
+        self.message_user(request, f'{queryset.count()} request(s) approved.')
+    approve_selected.short_description = 'Approve selected requests'
+ 
+    def reject_selected(self, request, queryset):
+        queryset.filter(status='pending').update(status='rejected', resolved_at=tz.now())
+        self.message_user(request, f'{queryset.count()} request(s) rejected.')
+    reject_selected.short_description = 'Reject selected requests'
