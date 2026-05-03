@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Student, Attendance, AttendanceSettings
+from .models import Student, Attendance, AttendanceSettings, TeacherProfile, StudentProfile
 
 
 @admin.register(Student)
@@ -33,3 +33,13 @@ class AttendanceSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False  # Singleton — never delete
+    
+
+@admin.register(TeacherProfile)
+class TeacherProfileAdmin(admin.ModelAdmin):
+    list_display  = ['user', 'assigned_classes']
+    # Admin creates teacher: picks a User, assigns class strings
+
+@admin.register(StudentProfile)
+class StudentProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'student']

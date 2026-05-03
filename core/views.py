@@ -342,12 +342,22 @@ class ProcessFrameView(View):
                     })
 
             # Mark attendance
+            # Mark attendance
             now = datetime.now()
-            record = Attendance.objects.create(
+            from django.utils import timezone as django_timezone
+
+            # Use get_or_create to handle duplicate entries gracefully
+            record, created = Attendance.objects.get_or_create(
                 student=student,
                 date=now.date(),
-                time=now.time(),
+                defaults={'time': now.time()}
             )
+
+            if not created:
+                # Record already existed, update the time
+                record.time = now.time()
+                record.save(update_fields=['time'])
+
             return JsonResponse({
                 'status': 'success',
                 'student_name': student.name,
@@ -355,6 +365,7 @@ class ProcessFrameView(View):
                 'student_id': student_id,
                 'time': now.strftime('%I:%M %p'),
                 'is_late': record.is_late,
+                'new_record': created  # So frontend knows if this was a new entry or update
             })
 
         return JsonResponse({'status': 'error', 'message': 'Invalid mode'}, status=400)
