@@ -24,12 +24,12 @@
   <div class="bg-white rounded-xl border border-green-100 shadow-sm p-5 text-center">
     <i class="fas fa-check-circle text-green-500 text-xl mb-2 block"></i>
     <p class="text-xs text-green-600 uppercase tracking-wide font-medium mb-1">On Time</p>
-    <p class="text-3xl font-bold text-green-600">{{ records|length|add:"-0" }}</p>
+    <p class="text-3xl font-bold text-green-600">{{ on_time_count }}</p>
   </div>
   <div class="bg-white rounded-xl border border-yellow-100 shadow-sm p-5 text-center">
     <i class="fas fa-clock text-yellow-500 text-xl mb-2 block"></i>
     <p class="text-xs text-yellow-600 uppercase tracking-wide font-medium mb-1">Late (90d)</p>
-    <p class="text-3xl font-bold text-yellow-500">{{ trend.late_count }}</p>
+    <p class="text-3xl font-bold text-yellow-500">{{ late_count }}</p>
   </div>
   <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5 text-center">
     <i class="fas fa-chart-line text-blue-500 text-xl mb-2 block"></i>
