@@ -21,6 +21,9 @@ from datetime import date, datetime, time as dt_time
 from .roles import get_role, ROLE_HOME
 from django.contrib.auth.mixins import UserPassesTestMixin,LoginRequiredMixin
 from .roles import is_teacher, is_student, is_admin
+from django.contrib.auth.views import PasswordChangeView
+from django.urls import reverse
+from django.contrib import messages
 
 import qrcode
 import pandas as pd
@@ -1722,4 +1725,36 @@ class StudentReportDownloadView(StudentRequiredMixin, View):
         return response
 
 
+class RoleBasedPasswordChangeView(PasswordChangeView):
+    template_name = "dashboard/Password_change.html"
+
+    def get_success_url(self):
+        user = self.request.user
+
+        if hasattr(user,"is_teacher") and user.is_teacher:
+            return reverse("teacher_dashboard")
+        elif hasattr(user,"is_student") and user.is_student:
+            return reverse("student_dashboard")
+        
+        if user.groups.filter(name = "Teacher").exists():
+            return reverse("teacher_dashboard")
+        elif user.groups.filter(name = "Student").exists():
+            return reverse("student_dashboard")
+        
+        role = getattr(user,"role",None)
+
+        if role == "teacher":
+            return reverse("teacher_dashboard")
+        elif role == "student":
+            return reverse("student_dashboard")
+        
+        return reverse("admin_dashboard")
+    
+    def form_valid(self,form):
+        response = super().form_valid(form)
+        messages.success(self.request,"Your password is successfully updated")
+
+        self.request.session["password_changed_success"] = True
+
+        return response
  
