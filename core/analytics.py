@@ -2,15 +2,12 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import date, timedelta
 from collections import defaultdict
-from .models import Student, Attendance
-
+from .models import *
 # Lazy import to avoid circular dependency at module load time
 def _get_session_model():
-    from .models_phase2 import AcademicSession
     return AcademicSession
 
 def _get_holiday_model():
-    from .models_phase2 import Holiday
     return Holiday
 
 

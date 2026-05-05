@@ -159,6 +159,39 @@
         {% if pending %}<span class="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ pending }}</span>{% endif %}
         {% endwith %}
       </a>
+      <div class="pt-2 pb-1 px-4">
+  <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Academic</p>
+</div>
+
+<a href="{% url 'academic_sessions' %}"
+   class="sidebar-link {% if request.resolver_match.url_name == 'academic_sessions' %}active{% endif %}">
+  <i class="fas fa-calendar-alt w-5 h-5 flex-shrink-0"></i>
+  Academic Sessions
+</a>
+
+<a href="{% url 'holidays' %}"
+   class="sidebar-link {% if request.resolver_match.url_name in 'holidays,holiday_upload' %}active{% endif %}">
+  <i class="fas fa-gift w-5 h-5 flex-shrink-0"></i>
+  Holidays
+</a>
+
+<a href="{% url 'teacher_management' %}"
+   class="sidebar-link {% if request.resolver_match.url_name == 'teacher_management' %}active{% endif %}">
+  <i class="fas fa-chalkboard-teacher w-5 h-5 flex-shrink-0"></i>
+  Manage Teachers
+</a>
+
+<a href="{% url 'timetable_admin' %}"
+   class="sidebar-link {% if request.resolver_match.url_name == 'timetable_admin' %}active{% endif %}">
+  <i class="fas fa-table w-5 h-5 flex-shrink-0"></i>
+  Timetables
+</a>
+
+<a href="{% url 'teacher_timetable' %}"
+   class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
+  <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
+  My Timetable
+</a>
       <a href="{% url 'settings' %}"
          class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
         <i class="fas fa-cog"></i>

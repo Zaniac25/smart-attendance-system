@@ -50,7 +50,6 @@ class Student(models.Model):
 
     @property
     def attendance_percentage(self):
-        from .models_phase2 import AcademicSession
         from datetime import date
  
         session = AcademicSession.objects.filter(course=self.course, is_active=True).first()
@@ -68,12 +67,10 @@ class Student(models.Model):
     
     @property
     def batch(self):
-        from .models_phase2 import get_batch_string
         return get_batch_string(self.admission_year, self.course)
  
     @property
     def current_year_label(self):
-        from .models_phase2 import compute_student_year
         return compute_student_year(self.admission_year, self.course)
 
 
