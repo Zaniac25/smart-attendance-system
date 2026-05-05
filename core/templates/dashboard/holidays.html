@@ -1,0 +1,185 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Holidays — ABIT Attendance{% endblock %}
+{% block page_title %}Holiday Management{% endblock %}
+{% block page_subtitle %}Manage holidays — excluded from attendance denominator{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'holiday_upload' %}" class="flex items-center gap-2 bg-primary hover:bg-blue-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-upload text-sm"></i>
+    Upload Holiday List
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <div class="lg:col-span-1">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="bg-primary px-6 py-4">
+                <h3 class="text-white font-semibold">Add Holiday</h3>
+                <p class="text-blue-300 text-xs mt-0.5">Add single holiday manually</p>
+            </div>
+            <div class="p-6 space-y-4">
+                <div id="addStatus" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Date <span class="text-red-500">*</span></label>
+                    <input type="date" id="holidayDate" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Holiday Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="holidayName" placeholder="e.g. Republic Day" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Session (optional)</label>
+                    <select id="holidaySession" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">— All sessions (national/global holiday) —</option>
+                        {% for session in sessions %}
+                        <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>
+                            {{ session.course }} — {{ session.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-slate-400 mt-1">Leave blank for national holidays that apply to all.</p>
+                </div>
+
+                <button onclick="addHoliday()" class="w-full bg-primary hover:bg-blue-900 text-white font-semibold
+                       py-2.5 rounded-lg transition-colors text-sm">
+                    <i class="fas fa-plus mr-2"></i> Add Holiday
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2">
+            <p class="font-semibold text-slate-700">Important notes:</p>
+            <div class="flex items-start gap-2"><i class="fas fa-circle text-blue-400 text-xs mt-0.5"></i><span>Holidays are excluded from the working days denominator</span></div>
+            <div class="flex items-start gap-2"><i class="fas fa-circle text-indigo-200 text-xs mt-0.5"></i><span>Sundays are automatically excluded (no need to add them)</span></div>
+            <div class="flex items-start gap-2"><i class="fas fa-circle text-blue-200 text-xs mt-0.5"></i><span>Global holidays (no session) apply to all sessions</span></div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-2">
+
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-4">
+            <form method="GET" class="flex items-center gap-3">
+                <label class="text-sm font-medium text-slate-700">Filter by session:</label>
+                <select name="session" onchange="this.form.submit()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Holidays</option>
+                    {% for session in sessions %}
+                    <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>
+                        {{ session.course }} — {{ session.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if selected_session %}
+                <a href="{% url 'holidays' %}" class="text-slate-500 text-sm hover:text-slate-700">
+                    <i class="fas fa-times mr-1"></i> Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="px-6 py-3 border-b border-slate-100 flex items-center justify-between">
+                <p class="text-sm text-slate-500"><i class="fas fa-calendar-alt mr-2"></i><span class="font-semibold text-slate-700">{{ holidays|length }}</span> holiday{{ holidays|length|pluralize }}</p>
+            </div>
+
+            {% if holidays %}
+            <table class="w-full text-sm" id="holidayTable">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3"><i class="far fa-calendar-alt mr-1"></i> Date</th>
+                        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3"><i class="far fa-sun mr-1"></i> Day</th>
+                        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3"><i class="fas fa-gift mr-1"></i> Holiday</th>
+                        <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3"><i class="fas fa-users mr-1"></i> Session</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for holiday in holidays %}
+                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors" id="hol-{{ holiday.id }}">
+                        <td class="px-4 py-3 font-medium text-slate-800">{{ holiday.date|date:"M j, Y" }}</td>
+                        <td class="px-4 py-3 text-slate-500">{{ holiday.date|date:"l" }}</td>
+                        <td class="px-4 py-3 text-slate-700">{{ holiday.name }}</td>
+                        <td class="px-4 py-3">
+                            {% if holiday.session %}
+                            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                <i class="fas fa-book-open mr-1 text-xs"></i> {{ holiday.session.course }} {{ holiday.session.name }}
+                            </span>
+                            {% else %}
+                            <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                                <i class="fas fa-globe mr-1 text-xs"></i> All sessions
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <button onclick="deleteHoliday('{{ holiday.id }}')" class="text-red-400 hover:text-red-600 text-xs font-medium transition-colors">
+                                <i class="fas fa-trash-alt mr-1"></i> Remove
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-12 text-slate-400">
+                <i class="fas fa-calendar-times fa-3x mx-auto mb-3 opacity-40"></i>
+                <p class="text-sm">No holidays found.</p>
+                <p class="text-xs mt-1">Add one using the form, or upload a holiday list.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CSRF = '{{ csrf_token }}';
+
+    async function addHoliday() {
+        const d = document.getElementById('holidayDate').value;
+        const name = document.getElementById('holidayName').value.trim();
+        const sid = document.getElementById('holidaySession').value;
+
+        if (!d || !name) { showStatus('Date and name are required.', false); return; }
+
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('date', d);
+        fd.append('name', name);
+        fd.append('session_id', sid);
+
+        const resp = await fetch('{% url "holidays" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        showStatus(data.message, data.success);
+        if (data.success) setTimeout(() => location.reload(), 1200);
+    }
+
+    async function deleteHoliday(id) {
+        if (!confirm('Remove this holiday?')) return;
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        const resp = await fetch(`/holidays/${ id }/delete/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            const row = document.getElementById(`hol-${ id }`);
+            row.style.transition = 'opacity .3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 300);
+        }
+    }
+
+    function showStatus(msg, success) {
+        const el = document.getElementById('addStatus');
+        el.className = `rounded-lg px-4 py-3 text-sm font-medium ${ success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700' }`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+</script>
+{% endblock %}

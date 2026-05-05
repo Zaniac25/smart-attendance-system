@@ -1,0 +1,316 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Teacher Management — ABIT Attendance{% endblock %}
+{% block page_title %}Teacher Management{% endblock %}
+{% block page_subtitle %}Create teacher accounts and assign classes — no terminal needed{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-1 space-y-5">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="bg-primary px-6 py-4">
+                <h3 class="text-white font-semibold">
+                    <i class="fas fa-chalkboard-teacher mr-2"></i> Add New Teacher
+                </h3>
+                <p class="text-blue-300 text-xs mt-0.5">Creates login account + assigns classes</p>
+            </div>
+            <div class="p-6 space-y-4">
+                <div id="createStatus" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">
+                        <i class="fas fa-user mr-1"></i> Username <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="newUsername" placeholder="e.g. mrsmith" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-xs text-slate-400 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i> Teacher will use this to log in
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">
+                        <i class="fas fa-id-card mr-1"></i> Full Name
+                    </label>
+                    <input type="text" id="newFullName" placeholder="e.g. Mr. John Smith" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">
+                        <i class="fas fa-lock mr-1"></i> Password <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="newPassword" placeholder="Min. 6 characters" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-16" />
+                        <button type="button" onclick="togglePwd('newPassword')" class="absolute right-3 top-2 text-slate-400 hover:text-slate-600 text-xs">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">
+                        <i class="fas fa-book mr-1"></i> Assign Classes
+                    </label>
+                    <div class="border border-slate-300 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                        {% for cls in all_classes %}
+                        <label class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+                            <input type="checkbox" class="new-class-cb w-4 h-4 rounded border-slate-300 text-blue-600" value="{{ cls }}" />
+                            <span class="text-sm text-slate-700">{{ cls }}</span>
+                        </label>
+                        {% empty %}
+                        <p class="px-4 py-3 text-sm text-slate-400">
+                            <i class="fas fa-exclamation-circle mr-1"></i> No classes found. Add students first.
+                        </p>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i> Teacher will only see students from checked classes
+                    </p>
+                </div>
+
+                <button onclick="createTeacher()" class="w-full bg-primary hover:bg-blue-900 text-white font-semibold
+                       py-2.5 rounded-lg transition-colors text-sm shadow-md">
+                    <i class="fas fa-plus-circle mr-2"></i> Create Teacher Account
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800">
+                    <i class="fas fa-users mr-2 text-primary"></i> All Teachers
+                </h3>
+                <span class="text-xs text-slate-400">
+                    <i class="fas fa-chalkboard-teacher mr-1"></i> {{ teachers|length }} teacher{{ teachers|length|pluralize }}
+                </span>
+            </div>
+
+            {% if teachers %}
+            <div class="divide-y divide-slate-50">
+                {% for teacher in teachers %}
+                <div class="p-6" id="teacher-{{ teacher.id }}">
+                    <div class="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                                    {{ teacher.user.username|first|upper }}
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-slate-800">
+                                        <i class="fas fa-user-graduate mr-1 text-slate-500"></i>
+                                        {{ teacher.user.get_full_name|default:teacher.user.username }}
+                                    </p>
+                                    <p class="text-xs text-slate-500 font-mono">
+                                        <i class="fas fa-at mr-1"></i> @{{ teacher.user.username }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="openResetPwd('{{ teacher.id }}', '{{ teacher.user.username }}')" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 font-medium px-3 py-1.5 rounded-lg transition-colors">
+                                <i class="fas fa-key mr-1"></i> Reset Password
+                            </button>
+                            <button onclick="deleteTeacher('{{ teacher.id }}', '{{ teacher.user.username }}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 font-medium px-3 py-1.5 rounded-lg transition-colors">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                            <i class="fas fa-graduation-cap mr-1"></i> Assigned Classes
+                        </p>
+                        <div class="flex flex-wrap gap-2 mb-3" id="badges-{{ teacher.id }}">
+                            {% for cls in teacher.assigned_classes %}
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                                <i class="fas fa-book-open mr-1"></i> {{ cls }}
+                            </span>
+                            {% empty %}
+                            <span class="text-slate-400 text-xs italic">
+                                <i class="fas fa-info-circle mr-1"></i> No classes assigned
+                            </span>
+                            {% endfor %}
+                        </div>
+
+                        <details class="group">
+                            <summary class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+                                <i class="fas fa-edit mr-1"></i> Edit assigned classes ▾
+                            </summary>
+                            <div class="mt-3 border border-slate-200 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+                                {% for cls in all_classes %}
+                                <label class="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+                                    <input type="checkbox" class="edit-class-cb-{{ teacher.id }} w-4 h-4 rounded border-slate-300 text-blue-600" value="{{ cls }}" {% if cls in teacher.assigned_classes %}checked{% endif %} />
+                                    <span class="text-sm text-slate-700">{{ cls }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <button onclick="updateClasses('{{ teacher.id }}')" class="mt-2 text-xs bg-primary hover:bg-blue-900 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                                <i class="fas fa-save mr-1"></i> Save Classes
+                            </button>
+                            <span id="update-status-{{ teacher.id }}" class="text-xs ml-2"></span>
+                        </details>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-16 text-slate-400">
+                <i class="fas fa-chalkboard-teacher fa-3x mx-auto mb-3 opacity-40"></i>
+                <p class="text-sm">No teachers yet.</p>
+                <p class="text-xs mt-1">Use the form to create the first teacher account.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div id="pwdModal" class="fixed inset-0 bg-black/60 z-50 items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+        <h3 class="font-semibold text-slate-800 mb-1">
+            <i class="fas fa-key text-primary mr-2"></i> Reset Password
+        </h3>
+        <p class="text-sm text-slate-500 mb-4">
+            Teacher: <span id="pwdModalName" class="font-semibold text-slate-700"></span>
+        </p>
+        <div class="relative">
+            <input type="password" id="newPwdInput" placeholder="New password (min 6 chars)" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 pr-16" />
+            <button type="button" onclick="togglePwd('newPwdInput')" class="absolute right-3 top-2 text-slate-400 hover:text-slate-600 text-xs">
+                <i class="fas fa-eye"></i>
+            </button>
+        </div>
+        <div id="pwdModalStatus" class="hidden text-sm mb-3"></div>
+        <div class="flex gap-3">
+            <button onclick="confirmResetPwd()" class="flex-1 bg-primary hover:bg-blue-900 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">
+                <i class="fas fa-sync-alt mr-1"></i> Reset Password
+            </button>
+            <button onclick="closePwdModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-colors">
+                <i class="fas fa-times mr-1"></i> Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CSRF = '{{ csrf_token }}';
+    let activeTeacherId = null;
+
+    function togglePwd(id) {
+        const el = document.getElementById(id);
+        const btn = el.nextElementSibling;
+        if (el.type === 'password') {
+            el.type = 'text';
+            btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            el.type = 'password';
+            btn.innerHTML = '<i class="fas fa-eye"></i>';
+        }
+    }
+
+    async function createTeacher() {
+        const username = document.getElementById('newUsername').value.trim();
+        const fullName = document.getElementById('newFullName').value.trim();
+        const password = document.getElementById('newPassword').value.trim();
+        const classes = [...document.querySelectorAll('.new-class-cb:checked')].map(cb => cb.value);
+
+        if (!username || !password) { showCreate('Username and password are required.', false); return; }
+        if (password.length < 6) { showCreate('Password must be at least 6 characters.', false); return; }
+
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'create');
+        fd.append('username', username);
+        fd.append('full_name', fullName);
+        fd.append('password', password);
+        classes.forEach(c => fd.append('assigned_classes', c));
+
+        const resp = await fetch('{% url "teacher_management" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        showCreate(data.message, data.success);
+        if (data.success) setTimeout(() => location.reload(), 1500);
+    }
+
+    async function updateClasses(teacherId) {
+        const classes = [...document.querySelectorAll(`.edit-class-cb-${ teacherId }:checked`)].map(cb => cb.value);
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'update_classes');
+        fd.append('teacher_id', teacherId);
+        classes.forEach(c => fd.append('assigned_classes', c));
+
+        const resp = await fetch('{% url "teacher_management" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        const status = document.getElementById(`update-status-${ teacherId }`);
+        status.textContent = data.message;
+        status.className = data.success ? 'text-xs ml-2 text-green-600' : 'text-xs ml-2 text-red-500';
+        if (data.success) setTimeout(() => location.reload(), 1200);
+    }
+
+    async function deleteTeacher(teacherId, username) {
+        if (!confirm(`Delete teacher "${ username }"? Their account will be permanently removed.`)) return;
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'delete');
+        fd.append('teacher_id', teacherId);
+        const resp = await fetch('{% url "teacher_management" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            const el = document.getElementById(`teacher-${ teacherId }`);
+            el.style.transition = 'opacity .3s';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 300);
+        }
+    }
+
+    function openResetPwd(teacherId, username) {
+        activeTeacherId = teacherId;
+        document.getElementById('pwdModalName').textContent = username;
+        document.getElementById('newPwdInput').value = '';
+        document.getElementById('pwdModalStatus').classList.add('hidden');
+        document.getElementById('pwdModal').classList.remove('hidden');
+        document.getElementById('pwdModal').classList.add('flex');
+    }
+
+    function closePwdModal() {
+        document.getElementById('pwdModal').classList.add('hidden');
+        document.getElementById('pwdModal').classList.remove('flex');
+        activeTeacherId = null;
+    }
+
+    async function confirmResetPwd() {
+        const pwd = document.getElementById('newPwdInput').value.trim();
+        if (!pwd || pwd.length < 6) {
+            showPwdModal('Password must be at least 6 characters.', false);
+            return;
+        }
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'reset_password');
+        fd.append('teacher_id', activeTeacherId);
+        fd.append('new_password', pwd);
+        const resp = await fetch('{% url "teacher_management" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        showPwdModal(data.message, data.success);
+        if (data.success) setTimeout(closePwdModal, 1500);
+    }
+
+    function showCreate(msg, success) {
+        const el = document.getElementById('createStatus');
+        el.className = `rounded-lg px-4 py-3 text-sm font-medium ${ success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700' }`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        if (success) setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
+    function showPwdModal(msg, success) {
+        const el = document.getElementById('pwdModalStatus');
+        el.className = `text-sm mb-3 ${ success ? 'text-green-700' : 'text-red-600' }`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+</script>
+{% endblock %}
