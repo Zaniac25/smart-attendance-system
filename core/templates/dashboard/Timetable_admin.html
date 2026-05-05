@@ -1,0 +1,315 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Timetables — ABIT Attendance{% endblock %}
+{% block page_title %}Timetable Management{% endblock %}
+{% block page_subtitle %}Upload or configure timetables for each teacher{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+  
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100">
+        <h3 class="font-semibold text-slate-800 text-sm">
+          <i class="fas fa-chalkboard-teacher mr-2 text-primary"></i> Select Teacher
+        </h3>
+      </div>
+      <div class="divide-y divide-slate-50 overflow-y-auto max-h-96">
+        {% for teacher in teachers %}
+        <a href="?teacher={{ teacher.id }}"
+           class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors
+                  {% if selected and selected.id == teacher.id %}bg-blue-50 border-l-2 border-blue-500{% endif %}">
+          <div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">
+            {{ teacher.user.username|first|upper }}
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-slate-800 truncate">{{ teacher.user.get_full_name|default:teacher.user.username }}</p>
+            <p class="text-xs text-slate-500 truncate">
+              <i class="fas fa-book-open mr-1"></i> {{ teacher.assigned_classes|join:", " }}
+            </p>
+          </div>
+          {% if teacher.timetable %}
+            <span class="ml-auto text-xs text-green-600 font-semibold flex-shrink-0">
+              <i class="fas fa-check-circle"></i>
+            </span>
+          {% endif %}
+        </a>
+        {% empty %}
+        <p class="px-4 py-6 text-sm text-slate-400 text-center">
+          <i class="fas fa-exclamation-circle mr-1"></i> No teachers yet.
+        </p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+
+  <div class="lg:col-span-3">
+    {% if not selected %}
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center" style="min-height:400px">
+      <div class="text-center text-slate-400">
+        <i class="fas fa-calendar-alt fa-4x mx-auto mb-3 opacity-30"></i>
+        <p class="text-sm">Select a teacher from the left to manage their timetable.</p>
+      </div>
+    </div>
+    {% else %}
+
+    <div class="space-y-5">
+
+
+      <div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 flex items-center justify-between">
+        <div>
+          <p class="font-semibold text-slate-800">
+            <i class="fas fa-user-graduate mr-2 text-primary"></i>
+            {{ selected.user.get_full_name|default:selected.user.username }}
+          </p>
+          <p class="text-xs text-slate-500">
+            <i class="fas fa-graduation-cap mr-1"></i> {{ selected.assigned_classes|join:" · " }}
+          </p>
+        </div>
+        {% if timetable %}
+        <div class="flex items-center gap-2">
+          {% if timetable.has_file %}
+          <span class="text-xs bg-green-100 text-green-700 font-medium px-2.5 py-1 rounded-full">
+            <i class="fas fa-check-circle mr-1"></i> File uploaded
+          </span>
+          {% endif %}
+          {% if timetable.has_grid %}
+          <span class="text-xs bg-blue-100 text-blue-700 font-medium px-2.5 py-1 rounded-full">
+            <i class="fas fa-table mr-1"></i> Grid filled
+          </span>
+          {% endif %}
+          <span class="text-xs text-slate-400">
+            <i class="fas fa-clock mr-1"></i> Updated: {{ timetable.updated_at|date:"M j, g:i A" }}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+
+
+      <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div class="flex border-b border-slate-200">
+          <button id="tabFile" onclick="switchTab('file')"
+                  class="flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all">
+            <i class="fas fa-upload mr-2"></i> Upload File
+          </button>
+          <button id="tabGrid" onclick="switchTab('grid')"
+                  class="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all">
+            <i class="fas fa-table mr-2"></i> Fill Grid
+          </button>
+        </div>
+
+
+        <div id="panelFile" class="p-6 space-y-4">
+          <p class="text-sm text-slate-500">
+            <i class="fas fa-info-circle mr-1"></i> Upload a PDF, image, or Excel file of the timetable. Teacher can download it from their portal.
+          </p>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              <i class="fas fa-calendar-week mr-1"></i> Academic Session
+            </label>
+            <select id="fileSessionId"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">— Not specified —</option>
+              {% for session in sessions %}
+              <option value="{{ session.id }}" {% if timetable and timetable.session_id == session.id %}selected{% endif %}>
+                {{ session.course }} — {{ session.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              <i class="fas fa-file-alt mr-1"></i> Timetable File
+            </label>
+            <input type="file" id="timetableFile" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls"
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+            <p class="text-xs text-slate-400 mt-1">
+              <i class="fas fa-laptop mr-1"></i> PDF, PNG, JPG, or Excel — max 10MB
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              <i class="fas fa-sticky-note mr-1"></i> Notes for teacher
+            </label>
+            <textarea id="fileNotes" rows="2" placeholder="Any instructions or notes..."
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none">{% if timetable %}{{ timetable.notes }}{% endif %}</textarea>
+          </div>
+
+          <div id="fileStatus" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+          <button onclick="saveFile()"
+                  class="bg-primary hover:bg-blue-900 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
+            <i class="fas fa-save mr-2"></i> Save File Timetable
+          </button>
+        </div>
+
+
+        <div id="panelGrid" class="p-6 hidden">
+          <p class="text-sm text-slate-500 mb-4">
+            <i class="fas fa-info-circle mr-1"></i> Fill in the timetable grid. Leave cells blank for free periods.
+          </p>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              <i class="fas fa-calendar-week mr-1"></i> Academic Session
+            </label>
+            <select id="gridSessionId"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+              <option value="">— Not specified —</option>
+              {% for session in sessions %}
+              <option value="{{ session.id }}" {% if timetable and timetable.session_id == session.id %}selected{% endif %}>
+                {{ session.course }} — {{ session.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2.5 text-left text-slate-600 font-semibold border-b border-slate-200 w-24">
+                    <i class="fas fa-clock mr-1"></i> Period
+                  </th>
+                  {% for day in days %}
+                  <th class="px-3 py-2.5 text-slate-600 font-semibold border-b border-slate-200 text-center">
+                    <i class="fas fa-calendar-day mr-1"></i> {{ day }}
+                  </th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for period in periods %}
+                <tr class="border-b border-slate-100">
+                  <td class="px-3 py-2 font-semibold text-slate-700 bg-slate-50">
+                    <i class="fas fa-hourglass-half mr-1"></i> Period {{ period }}
+                  </td>
+                  {% for day in days %}
+                  <td class="px-2 py-1.5 border-l border-slate-100">
+                    <input type="text"
+                           id="period_{{ day }}_{{ period }}"
+                           placeholder="e.g. Math 10A"
+                           value="{% if timetable and timetable.grid_data %}{{ timetable.grid_data|default_if_none:'' }}{% endif %}"
+                           class="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"/>
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">
+              <i class="fas fa-sticky-note mr-1"></i> Notes
+            </label>
+            <textarea id="gridNotes" rows="2" placeholder="Any notes for the teacher..."
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none">{% if timetable %}{{ timetable.notes }}{% endif %}</textarea>
+          </div>
+
+          <div id="gridStatus" class="hidden rounded-lg px-4 py-3 text-sm font-medium mt-4"></div>
+          <button onclick="saveGrid()"
+                  class="mt-4 bg-primary hover:bg-blue-900 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
+            <i class="fas fa-save mr-2"></i> Save Grid Timetable
+          </button>
+        </div>
+      </div>
+
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF      = '{{ csrf_token }}';
+const TEACHER_ID = '{% if selected %}{{ selected.id }}{% endif %}';
+const DAYS    = '{{ days|safe }}';
+const PERIODS = '{{ periods|safe }}';
+
+
+'{% if timetable and timetable.grid_data %}'
+const existingGrid = '{{ timetable.grid_data|safe }}';
+DAYS.forEach(day => {
+  PERIODS.forEach(period => {
+    const el = document.getElementById(`period_${day}_${period}`);
+    if (el && existingGrid[day] && existingGrid[day][period]) {
+      el.value = existingGrid[day][period];
+    }
+  });
+});
+'{% endif %}'
+
+function switchTab(tab) {
+  const isFile = tab === 'file';
+  const fileBtn = document.getElementById('tabFile');
+  const gridBtn = document.getElementById('tabGrid');
+  const panelFile = document.getElementById('panelFile');
+  const panelGrid = document.getElementById('panelGrid');
+  
+  if (isFile) {
+    fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
+    gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
+    panelFile.classList.remove('hidden');
+    panelGrid.classList.add('hidden');
+  } else {
+    gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
+    fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
+    panelGrid.classList.remove('hidden');
+    panelFile.classList.add('hidden');
+  }
+}
+
+async function saveFile() {
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('teacher_id',  TEACHER_ID);
+  fd.append('mode',        'file');
+  fd.append('session_id',  document.getElementById('fileSessionId').value);
+  fd.append('notes',       document.getElementById('fileNotes').value);
+  const file = document.getElementById('timetableFile').files[0];
+  if (file) fd.append('timetable_file', file);
+
+  const resp = await fetch('{% url "timetable_admin" %}', { method: 'POST', body: fd });
+  const data = await resp.json();
+  showStatus('fileStatus', data.message, data.success);
+}
+
+async function saveGrid() {
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('teacher_id',  TEACHER_ID);
+  fd.append('mode',        'grid');
+  fd.append('session_id',  document.getElementById('gridSessionId').value);
+  fd.append('notes',       document.getElementById('gridNotes').value);
+
+  DAYS.forEach(day => {
+    PERIODS.forEach(period => {
+      const val = document.getElementById(`period_${day}_${period}`)?.value?.trim();
+      if (val) fd.append(`period_${day}_${period}`, val);
+    });
+  });
+
+  const resp = await fetch('{% url "timetable_admin" %}', { method: 'POST', body: fd });
+  const data = await resp.json();
+  showStatus('gridStatus', data.message, data.success);
+}
+
+function showStatus(id, msg, success) {
+  const el = document.getElementById(id);
+  el.className = `rounded-lg px-4 py-3 text-sm font-medium ${success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`;
+  el.innerHTML = `${success ? '<i class="fas fa-check-circle mr-2"></i>' : '<i class="fas fa-exclamation-triangle mr-2"></i>'} ${msg}`;
+  el.classList.remove('hidden');
+  if (success) {
+    setTimeout(() => {
+      el.classList.add('hidden');
+    }, 3000);
+  }
+}
+</script>
+{% endblock %}

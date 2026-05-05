@@ -1,0 +1,149 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}My Timetable — ABIT Attendance{% endblock %}
+{% block page_title %}My Timetable{% endblock %}
+{% block page_subtitle %}{{ profile.assigned_classes|join:" · " }}{% endblock %}
+
+{% block header_actions %}
+  {% if timetable and timetable.has_file %}
+  <a href="{% url 'timetable_download' %}"
+     class="flex items-center gap-2 bg-primary hover:bg-blue-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-download text-sm"></i>
+    Download Timetable
+  </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not timetable %}
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center" style="min-height:400px">
+  <div class="text-center text-slate-400 max-w-sm">
+    <i class="fas fa-calendar-alt fa-4x mx-auto mb-3 opacity-30"></i>
+    <p class="text-sm font-medium">No timetable assigned yet.</p>
+    <p class="text-xs mt-1">Your admin will upload or configure your timetable.</p>
+  </div>
+</div>
+
+{% else %}
+
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-5 flex flex-wrap items-center gap-4">
+  {% if timetable.session %}
+  <div class="flex items-center gap-2">
+    <span class="text-xs text-slate-500 font-medium uppercase tracking-wide">
+      <i class="fas fa-calendar-week mr-1"></i> Session:
+    </span>
+    <span class="text-sm font-semibold text-slate-800">{{ timetable.session.course }} — {{ timetable.session.name }}</span>
+  </div>
+  {% endif %}
+  <div class="flex items-center gap-2">
+    {% if timetable.has_file %}
+    <span class="bg-green-100 text-green-700 text-xs font-medium px-2.5 py-1 rounded-full">
+      <i class="fas fa-check-circle mr-1"></i> File available
+    </span>
+    {% endif %}
+    {% if timetable.has_grid %}
+    <span class="bg-blue-100 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full">
+      <i class="fas fa-table mr-1"></i> Grid available
+    </span>
+    {% endif %}
+  </div>
+  <div class="ml-auto text-xs text-slate-400">
+    <i class="fas fa-clock mr-1"></i> Last updated: {{ timetable.updated_at|date:"M j, Y g:i A" }}
+  </div>
+</div>
+
+{% if timetable.notes %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-5 text-sm text-amber-800">
+  <i class="fas fa-sticky-note mr-2"></i>
+  <span class="font-semibold">Note from admin:</span> {{ timetable.notes }}
+</div>
+{% endif %}
+
+{% if timetable.has_grid %}
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-5">
+  <div class="px-6 py-4 border-b border-slate-100">
+    <h3 class="font-semibold text-slate-800">
+      <i class="fas fa-calendar-week mr-2 text-primary"></i> Weekly Timetable
+    </h3>
+  </div>
+  <div class="overflow-x-auto p-4">
+    <table class="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+      <thead class="bg-slate-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-slate-600 font-semibold border-b border-slate-200 w-24">
+            <i class="fas fa-clock mr-1"></i> Period
+          </th>
+          {% for day in days %}
+          <th class="px-4 py-3 text-slate-600 font-semibold border-b border-slate-200 text-center">
+            <i class="fas fa-calendar-day mr-1"></i> {{ day }}
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for period in periods %}
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="px-4 py-3 font-semibold text-slate-700 bg-slate-50 text-sm">
+            <i class="fas fa-hourglass-half mr-1"></i> Period {{ period }}
+          </td>
+          {% for day in days %}
+          <td class="px-4 py-3 text-center border-l border-slate-100">
+            {% with cell=timetable.grid_data|default_if_none:{} %}
+              <span class="grid-cell text-slate-700 text-xs" data-day="{{ day }}" data-period="{{ period }}">—</span>
+            {% endwith %}
+           </td>
+          {% endfor %}
+         </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if timetable.has_file %}
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+  <h3 class="font-semibold text-slate-800 mb-4">
+    <i class="fas fa-file-alt mr-2 text-primary"></i> Timetable File
+  </h3>
+  <div class="flex items-center gap-4">
+    <div class="w-14 h-14 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-file-pdf text-2xl text-white"></i>
+    </div>
+    <div class="flex-1">
+      <p class="font-medium text-slate-800">Your timetable file is ready</p>
+      <p class="text-sm text-slate-500 mt-0.5">Click below to download it to your device</p>
+    </div>
+    <a href="{% url 'timetable_download' %}"
+       class="flex items-center gap-2 bg-primary hover:bg-blue-900 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors shadow-md">
+      <i class="fas fa-download text-sm"></i>
+      Download
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if timetable and timetable.has_grid %}
+<script>
+const gridData = '{{ timetable.grid_data|safe }}';
+document.querySelectorAll('.grid-cell').forEach(cell => {
+  const day = cell.dataset.day;
+  const period = cell.dataset.period;
+  const val = gridData[day] && gridData[day][period];
+  if (val) {
+    cell.textContent = val;
+    cell.classList.add('font-medium', 'text-slate-800');
+  } else {
+    cell.textContent = '—';
+    cell.classList.add('text-slate-300');
+  }
+});
+</script>
+{% endif %}
+{% endblock %}
