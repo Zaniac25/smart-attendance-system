@@ -42,14 +42,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from django.contrib.auth.models import User, Group
 
 from .models import *
 from .serializers import StudentSerializer, MarkAttendanceSerializer
-from .analytics import (
-    get_daily_report, get_weekly_trend,
-    get_classwise_report, get_student_trend, get_dashboard_stats,
-)
+from .analytics import *
 from .notifications import send_daily_absent_report
+import mimetypes
 
 # Optional libs
 try:
@@ -1758,3 +1757,508 @@ class RoleBasedPasswordChangeView(PasswordChangeView):
 
         return response
  
+
+ 
+# ACADEMIC SESSION MANAGEMENT (Admin only)
+ 
+
+@method_decorator(login_required, name='dispatch')
+class AcademicSessionListView(AdminRequiredMixin, View):
+    def get(self, request):
+        sessions  = AcademicSession.objects.all().order_by('-start_date')
+        courses = Student.objects.values_list('course', flat=True).exclude(course='').distinct()
+        return render(request, 'dashboard/academic_sessions.html', {
+            'sessions': sessions,
+            'courses':  sorted(set(courses)),
+        })
+
+    def post(self, request):
+        """Create a new academic session."""
+        course = request.POST.get('course', '').strip()
+        name = request.POST.get('name', '').strip()
+        start_date = request.POST.get('start_date', '').strip()
+        end_date = request.POST.get('end_date', '').strip()
+        is_active  = request.POST.get('is_active') == 'on'
+
+        errors = {}
+        if not course: errors['course'] = 'Required.'
+        if not name: errors['name'] = 'Required.'
+        if not start_date: errors['start_date'] = 'Required.'
+        if not end_date: errors['end_date']   = 'Required.'
+
+        if not errors:
+            try:
+                start = date.fromisoformat(start_date)
+                end   = date.fromisoformat(end_date)
+                if end <= start:
+                    errors['end_date'] = 'End date must be after start date.'
+            except ValueError:
+                errors['start_date'] = 'Invalid date format.'
+
+        if errors:
+            sessions = AcademicSession.objects.all().order_by('-start_date')
+            courses  = Student.objects.values_list('course', flat=True).exclude(course='').distinct()
+            return render(request, 'dashboard/academic_sessions.html', {
+                'sessions': sessions,
+                'courses':  sorted(set(courses)),
+                'errors':   errors,
+                'form_data': request.POST,
+            })
+
+        AcademicSession.objects.create(
+            course=course, name=name,
+            start_date=start, end_date=end,
+            is_active=is_active,
+        )
+        return redirect('academic_sessions')
+
+
+@method_decorator(login_required, name='dispatch')
+class AcademicSessionToggleView(AdminRequiredMixin, View):
+    """Toggle a session's active status via AJAX."""
+    def post(self, request, session_id):
+        session = get_object_or_404(AcademicSession, id=session_id)
+        action = request.POST.get('action')
+        if action == 'activate':
+            session.is_active = True
+            session.save()   
+        elif action == 'deactivate':
+            session.is_active = False
+            session.save()
+        elif action == 'delete':
+            session.delete()
+            return JsonResponse({'success': True, 'deleted': True})
+        return JsonResponse({'success': True, 'is_active': session.is_active})
+
+
+ 
+# HOLIDAY MANAGEMENT (Admin only)
+ 
+@method_decorator(login_required, name='dispatch')
+class HolidayListView(AdminRequiredMixin, View):
+    def get(self, request):
+        session_id = request.GET.get('session')
+        sessions = AcademicSession.objects.all().order_by('-start_date')
+        holidays = Holiday.objects.all().order_by('date')
+        selected_session = None
+
+        if session_id:
+            selected_session = get_object_or_404(AcademicSession, id=session_id)
+            holidays = holidays.filter(
+                Q(session=selected_session) | Q(session__isnull=True)
+            )
+
+        return render(request, 'dashboard/holidays.html', {
+            'holidays': holidays,
+            'sessions': sessions,
+            'selected_session': selected_session,
+        })
+
+    def post(self, request):
+        """Add a single holiday manually."""
+        holiday_date = request.POST.get('date', '').strip()
+        name = request.POST.get('name', '').strip()
+        session_id   = request.POST.get('session_id', '').strip() or None
+
+        if not holiday_date or not name:
+            return JsonResponse({'success': False, 'message': 'Date and name are required.'})
+
+        try:
+            d = date.fromisoformat(holiday_date)
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid date format.'})
+
+        session = None
+        if session_id:
+            session = get_object_or_404(AcademicSession, id=session_id)
+
+        obj, created = Holiday.objects.get_or_create(
+            date=d, session=session,
+            defaults={'name': name}
+        )
+        if not created:
+            obj.name = name
+            obj.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Holiday "{name}" on {d} saved.',
+            'id': obj.id,
+        })
+
+
+@method_decorator(login_required, name='dispatch')
+class HolidayDeleteView(AdminRequiredMixin, View):
+    def post(self, request, holiday_id):
+        get_object_or_404(Holiday, id=holiday_id).delete()
+        return JsonResponse({'success': True})
+
+
+@method_decorator(login_required, name='dispatch')
+class HolidayUploadView(AdminRequiredMixin, View):
+    """
+    Upload a CSV or Excel file to bulk-import holidays.
+    CSV format:  Date (YYYY-MM-DD), Name
+    Excel format: Same columns, first row is header.
+    """
+    def get(self, request):
+        sessions = AcademicSession.objects.all().order_by('-start_date')
+        return render(request, 'dashboard/holiday_upload.html', {'sessions': sessions})
+
+    def post(self, request):
+        uploaded   = request.FILES.get('holiday_file')
+        session_id = request.POST.get('session_id', '').strip() or None
+
+        if not uploaded:
+            return render(request, 'dashboard/holiday_upload.html', {
+                'sessions': AcademicSession.objects.all(),
+                'error':    'Please upload a file.',
+            })
+
+        session = None
+        if session_id:
+            session = get_object_or_404(AcademicSession, id=session_id)
+
+        filename = uploaded.name.lower()
+        created, updated, skipped, row_errors = 0, 0, 0, []
+
+        try:
+            if filename.endswith('.csv'):
+                rows = _parse_holiday_csv(uploaded)
+            elif filename.endswith(('.xlsx', '.xls')):
+                rows = _parse_holiday_excel(uploaded)
+            else:
+                return render(request, 'dashboard/holiday_upload.html', {
+                    'sessions': AcademicSession.objects.all(),
+                    'error':    'Only .csv, .xlsx, or .xls files are accepted.',
+                })
+        except Exception as e:
+            return render(request, 'dashboard/holiday_upload.html', {
+                'sessions': AcademicSession.objects.all(),
+                'error':    f'Could not parse file: {e}',
+            })
+
+        for i, row in enumerate(rows, 2):
+            date_val = str(row.get('Date', '') or row.get('date', '')).strip()
+            name_val = str(row.get('Name', '') or row.get('name', '')).strip()
+
+            if not date_val or not name_val:
+                row_errors.append(f'Row {i}: missing Date or Name — skipped')
+                skipped += 1
+                continue
+
+            try:
+                # Handle both YYYY-MM-DD and DD/MM/YYYY
+                if '/' in date_val:
+                    d = datetime.strptime(date_val, '%d/%m/%Y').date()
+                else:
+                    d = date.fromisoformat(date_val)
+            except ValueError:
+                row_errors.append(f'Row {i}: invalid date "{date_val}" — use YYYY-MM-DD or DD/MM/YYYY')
+                skipped += 1
+                continue
+
+            obj, was_created = Holiday.objects.get_or_create(
+                date=d, session=session,
+                defaults={'name': name_val}
+            )
+            if was_created:
+                created += 1
+            else:
+                obj.name = name_val
+                obj.save()
+                updated += 1
+
+        return render(request, 'dashboard/holiday_upload.html', {
+            'sessions': AcademicSession.objects.all(),
+            'result': {
+                'created': created, 'updated': updated,
+                'skipped': skipped, 'errors':  row_errors,
+            }
+        })
+
+
+def _parse_holiday_csv(file_obj):
+    import csv, io
+    content = file_obj.read().decode('utf-8')
+    reader  = csv.DictReader(io.StringIO(content))
+    return list(reader)
+
+
+def _parse_holiday_excel(file_obj):
+    rows = []
+    try:
+        df = pd.read_excel(file_obj, dtype=str)
+        for _, row in df.iterrows():
+            rows.append(row.to_dict())
+    except Exception as e:
+        raise ValueError(f"Excel parse error: {e}")
+    return rows
+
+
+ 
+# TEACHER MANAGEMENT (Admin only — full CRUD from dashboard)
+ 
+
+@method_decorator(login_required, name='dispatch')
+class TeacherManagementView(AdminRequiredMixin, View):
+    """
+    Admin dashboard page: list all teachers, create new ones,
+    assign/update their classes.
+    """
+    def get(self, request):
+        teachers = TeacherProfile.objects.select_related('user').all().order_by('user__username')
+        all_classes  = sorted(set(
+            Student.objects.exclude(student_class='').values_list('student_class', flat=True)
+        ))
+        return render(request, 'dashboard/teacher_management.html', {
+            'teachers':    teachers,
+            'all_classes': all_classes,
+        })
+
+    def post(self, request):
+        action = request.POST.get('action')
+
+        if action == 'create':
+            username = request.POST.get('username', '').strip()
+            password = request.POST.get('password', '').strip()
+            full_name = request.POST.get('full_name', '').strip()
+            assigned_classes = request.POST.getlist('assigned_classes')
+
+            if not username or not password:
+                return JsonResponse({'success': False, 'message': 'Username and password are required.'})
+
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({'success': False, 'message': f'Username "{username}" already exists.'})
+
+            group, _ = Group.objects.get_or_create(name='Teacher')
+            name_parts = full_name.split() if full_name else []
+
+            user = User.objects.create_user(
+                username = username,
+                password = password,
+                first_name = name_parts[0] if name_parts else '',
+                last_name  = ' '.join(name_parts[1:]) if len(name_parts) > 1 else '',
+            )
+            user.groups.add(group)
+
+            profile = TeacherProfile.objects.create(
+                user=user, assigned_classes=assigned_classes
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message':  f'Teacher "{username}" created.',
+                'username': username,
+                'id': profile.id,
+            })
+
+        # Update classes for existing teacher 
+        if action == 'update_classes':
+            teacher_id       = request.POST.get('teacher_id')
+            assigned_classes = request.POST.getlist('assigned_classes')
+            profile = get_object_or_404(TeacherProfile, id=teacher_id)
+            profile.assigned_classes = assigned_classes
+            profile.save()
+            return JsonResponse({'success': True, 'message': 'Classes updated.'})
+
+        # Reset teacher password 
+        if action == 'reset_password':
+            teacher_id   = request.POST.get('teacher_id')
+            new_password = request.POST.get('new_password', '').strip()
+            if not new_password or len(new_password) < 6:
+                return JsonResponse({'success': False, 'message': 'Password must be at least 6 characters.'})
+            profile = get_object_or_404(TeacherProfile, id=teacher_id)
+            profile.user.set_password(new_password)
+            profile.user.save()
+            return JsonResponse({'success': True, 'message': 'Password reset.'})
+
+        # Delete teacher 
+        if action == 'delete':
+            teacher_id = request.POST.get('teacher_id')
+            profile    = get_object_or_404(TeacherProfile, id=teacher_id)
+            username   = profile.user.username
+            profile.user.delete()   # cascades to TeacherProfile
+            return JsonResponse({'success': True, 'message': f'Teacher "{username}" deleted.'})
+
+        return JsonResponse({'success': False, 'message': 'Unknown action.'}, status=400)
+
+
+ 
+# TIMETABLE MANAGEMENT
+ 
+
+TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+TIMETABLE_PERIODS = ['1', '2', '3', '4', '5', '6', '7', '8']
+
+
+@method_decorator(login_required, name='dispatch')
+class TimetableAdminView(AdminRequiredMixin, View):
+    """Admin: upload or fill timetable grid for any teacher."""
+    def get(self, request):
+        teachers = TeacherProfile.objects.select_related('user').all().order_by('user__username')
+        selected_id = request.GET.get('teacher')
+        selected = None
+        timetable = None
+
+        if selected_id:
+            selected  = get_object_or_404(TeacherProfile, id=selected_id)
+            timetable = Timetable.objects.filter(teacher=selected).first()
+
+        return render(request, 'dashboard/timetable_admin.html', {
+            'teachers': teachers,
+            'selected': selected,
+            'timetable':  timetable,
+            'days': TIMETABLE_DAYS,
+            'periods': TIMETABLE_PERIODS,
+            'sessions': AcademicSession.objects.filter(is_active=True),
+        })
+
+    def post(self, request):
+        teacher_id = request.POST.get('teacher_id')
+        mode = request.POST.get('mode')   # 'file' | 'grid'
+        teacher = get_object_or_404(TeacherProfile, id=teacher_id)
+        session_id = request.POST.get('session_id') or None
+        session = get_object_or_404(AcademicSession, id=session_id) if session_id else None
+        notes = request.POST.get('notes', '').strip()
+
+        timetable, _ = Timetable.objects.get_or_create(teacher=teacher)
+        timetable.session = session
+        timetable.notes   = notes
+
+        if mode == 'file':
+            uploaded = request.FILES.get('timetable_file')
+            if uploaded:
+                timetable.file = uploaded
+            timetable.save()
+            return JsonResponse({'success': True, 'message': 'Timetable file saved.'})
+
+        if mode == 'grid':
+            # Reconstruct grid from POST: period_Monday_1, period_Tuesday_2, etc.
+            grid = {}
+            for day in TIMETABLE_DAYS:
+                grid[day] = {}
+                for period in TIMETABLE_PERIODS:
+                    key = f'period_{day}_{period}'
+                    val = request.POST.get(key, '').strip()
+                    if val:
+                        grid[day][period] = val
+            timetable.grid_data = grid
+            timetable.save()
+            return JsonResponse({'success': True, 'message': 'Timetable grid saved.'})
+
+        return JsonResponse({'success': False, 'message': 'Unknown mode.'}, status=400)
+
+
+@method_decorator(login_required, name='dispatch')
+class TimetableDownloadView(View):
+    """
+    Teacher downloads their timetable file.
+    Accessible by the teacher themselves or admin.
+    """
+    def get(self, request, teacher_id=None):
+        if is_teacher(request.user):
+            profile = get_object_or_404(TeacherProfile, user=request.user)
+        else:
+            profile = get_object_or_404(TeacherProfile, id=teacher_id)
+
+        timetable = get_object_or_404(Timetable, teacher=profile)
+
+        if not timetable.has_file:
+            return JsonResponse({'error': 'No file uploaded yet.'}, status=404)
+
+        file_path = timetable.file.path
+        mime_type, _ = mimetypes.guess_type(file_path)
+        mime_type = mime_type or 'application/octet-stream'
+
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type=mime_type)
+        filename = os.path.basename(file_path)
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+@method_decorator(login_required, name='dispatch')
+class TimetableTeacherView(TeacherRequiredMixin, View):
+    """Teacher view — see both grid and/or download file."""
+    def get(self, request):
+        profile   = get_object_or_404(TeacherProfile, user=request.user)
+        timetable = Timetable.objects.filter(teacher=profile).first()
+
+        return render(request, 'dashboard/teacher_timetable.html', {
+            'profile': profile,
+            'timetable': timetable,
+            'days': TIMETABLE_DAYS,
+            'periods': TIMETABLE_PERIODS,
+        })
+ 
+
+    def _get_filter_options_v2():
+        """
+        Extended filter options including batch and year.
+        Replace the existing _get_filter_options() with this.
+        """
+        from .models import COURSE_DURATION
+        courses  = Student.objects.values_list('course',  flat=True).exclude(course='').distinct().order_by('course')
+        branches = Student.objects.values_list('branch',  flat=True).exclude(branch='').distinct().order_by('branch')
+        sections = Student.objects.values_list('section', flat=True).exclude(section='').distinct().order_by('section')
+
+        # Derive available batches from admission_year + course
+        batches = set()
+        for s in Student.objects.exclude(admission_year=None).values('admission_year', 'course'):
+            dur = COURSE_DURATION.get(s['course'], 4)
+            end = s['admission_year'] + dur
+            batches.add(f"{s['admission_year']}-{str(end)[2:]}")
+
+        return {
+            'courses':  list(courses),
+            'branches': list(branches),
+            'sections': list(sections),
+            'batches':  sorted(batches, reverse=True),
+        }
+
+
+    def _apply_filters_v2(qs, request):
+        """
+        Extended apply_filters with batch and year support.
+        Replace the existing _apply_filters() with this.
+        """
+        from .models import COURSE_DURATION, compute_student_year
+        course  = request.GET.get('course', '').strip()
+        branch = request.GET.get('branch', '').strip()
+        section = request.GET.get('section', '').strip()
+        batch = request.GET.get('batch', '').strip()
+        year = request.GET.get('year', '').strip()
+        search  = request.GET.get('q', '').strip()
+
+        if course:  qs = qs.filter(course=course)
+        if branch:  qs = qs.filter(branch=branch)
+        if section: qs = qs.filter(section=section)
+
+        if batch:
+            # batch = "2022-26" → admission_year=2022
+            try:
+                admission_year = int(batch.split('-')[0])
+                qs = qs.filter(admission_year=admission_year)
+            except (ValueError, IndexError):
+                pass
+
+        if year and course:
+            # year = "2nd Year" → filter students whose computed year matches
+            session = get_active_session(course)
+            session_start = session.start_year if session else (timezone.localdate().year if timezone.localdate().month >= 7 else timezone.localdate().year - 1)
+            dur = COURSE_DURATION.get(course, 4)
+            # work backwards: if year = "2nd Year", year_num=2, admission_year = session_start - 2 + 1
+            year_map = {'1st Year': 1, '2nd Year': 2, '3rd Year': 3, '4th Year': 4}
+            year_num = year_map.get(year)
+            if year_num:
+                admission_year = session_start - year_num + 1
+                qs = qs.filter(admission_year=admission_year)
+
+        if search:
+            qs = qs.filter(name__icontains=search) | qs.filter(student_id__icontains=search)
+
+        return qs, {
+            'course': course, 'branch': branch, 'section': section,
+            'batch': batch, 'year': year, 'search': search,
+        }
