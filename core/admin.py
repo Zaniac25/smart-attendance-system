@@ -4,6 +4,7 @@ from .models import *
 from django.utils import timezone as tz
 
 
+
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
     list_display = ['student_id', 'name', 'student_class', 'face_enrolled', 'qr_generated', 'attendance_percentage']
@@ -72,3 +73,49 @@ class ChangeRequestAdmin(admin.ModelAdmin):
         queryset.filter(status='pending').update(status='rejected', resolved_at=tz.now())
         self.message_user(request, f'{queryset.count()} request(s) rejected.')
     reject_selected.short_description = 'Reject selected requests'
+
+
+@admin.register(AcademicSession)
+class AcademicSessionAdmin(admin.ModelAdmin):
+    list_display  = ['name', 'course', 'start_date', 'end_date', 'is_active', 'working_days_count', 'holiday_count']
+    list_filter   = ['course', 'is_active']
+    search_fields = ['course', 'name']
+    list_editable = ['is_active']
+    ordering      = ['-start_date']
+ 
+    def working_days_count(self, obj):
+        return obj.get_working_days()
+    working_days_count.short_description = 'Working Days (to date)'
+ 
+    def holiday_count(self, obj):
+        return obj.holidays.count()
+    holiday_count.short_description = 'Holidays'
+ 
+ 
+@admin.register(Holiday)
+class HolidayAdmin(admin.ModelAdmin):
+    list_display  = ['date', 'name', 'day_of_week', 'session']
+    list_filter   = ['session']
+    search_fields = ['name']
+    ordering      = ['date']
+    date_hierarchy = 'date'
+ 
+    def day_of_week(self, obj):
+        return obj.date.strftime('%A')
+    day_of_week.short_description = 'Day'
+ 
+ 
+@admin.register(Timetable)
+class TimetableAdmin(admin.ModelAdmin):
+    list_display  = ['teacher', 'session', 'has_file_display', 'has_grid_display', 'updated_at']
+    list_filter   = ['session']
+    search_fields = ['teacher__user__username']
+    readonly_fields = ['updated_at']
+ 
+    def has_file_display(self, obj):
+        return format_html('<span style="color:green">✓</span>') if obj.has_file else '—'
+    has_file_display.short_description = 'File'
+ 
+    def has_grid_display(self, obj):
+        return format_html('<span style="color:green">✓</span>') if obj.has_grid else '—'
+    has_grid_display.short_description = 'Grid'
