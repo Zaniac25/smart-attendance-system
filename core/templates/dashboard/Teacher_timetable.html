@@ -81,21 +81,8 @@
           {% endfor %}
         </tr>
       </thead>
-      <tbody>
-        {% for period in periods %}
-        <tr class="border-b border-slate-100 hover:bg-slate-50">
-          <td class="px-4 py-3 font-semibold text-slate-700 bg-slate-50 text-sm">
-            <i class="fas fa-hourglass-half mr-1"></i> Period {{ period }}
-          </td>
-          {% for day in days %}
-          <td class="px-4 py-3 text-center border-l border-slate-100">
-            {% with cell=timetable.grid_data|default_if_none:{} %}
-              <span class="grid-cell text-slate-700 text-xs" data-day="{{ day }}" data-period="{{ period }}">—</span>
-            {% endwith %}
-           </td>
-          {% endfor %}
-         </tr>
-        {% endfor %}
+      <tbody id="timetable-tbody">
+        <!-- Will be populated by JavaScript -->
       </tbody>
     </table>
   </div>
@@ -131,19 +118,85 @@
 {% block extra_js %}
 {% if timetable and timetable.has_grid %}
 <script>
-const gridData = '{{ timetable.grid_data|safe }}';
-document.querySelectorAll('.grid-cell').forEach(cell => {
-  const day = cell.dataset.day;
-  const period = cell.dataset.period;
-  const val = gridData[day] && gridData[day][period];
-  if (val) {
-    cell.textContent = val;
-    cell.classList.add('font-medium', 'text-slate-800');
-  } else {
-    cell.textContent = '—';
-    cell.classList.add('text-slate-300');
-  }
-});
+// Debug - check what we received from Django
+console.log('=== Timetable Debug Info ===');
+console.log('Days from Django:', {{ days|safe }});
+console.log('Periods from Django:', {{ periods|safe }});
+console.log('Grid data type:', typeof {{ timetable.grid_data|default:'{}'|safe }});
+console.log('Has grid file:', {{ timetable.has_file|yesno:"true,false" }});
+console.log('Has grid data:', {{ timetable.has_grid|yesno:"true,false" }});
+
+// Get data from Django template
+const days = {{ days|safe }};
+const periods = {{ periods|safe }};
+let gridData = {};
+
+// Safely parse grid data
+try {
+    gridData = {{ timetable.grid_data|default:'{}'|safe }};
+    console.log('Grid data parsed successfully:', gridData);
+} catch(e) {
+    console.error('Error parsing grid data:', e);
+    gridData = {};
+}
+
+// Get the table body
+const tbody = document.getElementById('timetable-tbody');
+if (!tbody) {
+    console.error('Table body element not found!');
+} else if (!days || days.length === 0) {
+    console.error('Days array is empty or not defined!');
+    // Show error message in table
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = (periods?.length || 0) + 1;
+    cell.className = 'px-4 py-8 text-center text-red-500';
+    cell.textContent = 'Error: Days data not received from server. Please refresh the page.';
+    row.appendChild(cell);
+    tbody.appendChild(row);
+} else {
+    console.log('Building timetable with', days.length, 'days and', periods.length, 'periods');
+    
+    // Build the table rows
+    for (let p of periods) {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-slate-100 hover:bg-slate-50';
+        
+        // Period column
+        const periodCell = document.createElement('td');
+        periodCell.className = 'px-4 py-3 font-semibold text-slate-700 bg-slate-50 text-sm';
+        periodCell.innerHTML = `<i class="fas fa-hourglass-half mr-1"></i> Period ${p}`;
+        row.appendChild(periodCell);
+        
+        // Day columns
+        for (let day of days) {
+            const dayCell = document.createElement('td');
+            dayCell.className = 'px-4 py-3 text-center border-l border-slate-100';
+            
+            // Get the value from grid data
+            let value = '—';
+            try {
+                if (gridData && gridData[day] && gridData[day][p]) {
+                    value = gridData[day][p];
+                    console.log(`Found value for ${day} Period ${p}:`, value);
+                }
+            } catch(e) {
+                console.error(`Error accessing grid data for ${day}-${p}:`, e);
+            }
+            
+            dayCell.innerHTML = `<span class="text-slate-700 text-xs font-medium">${value}</span>`;
+            row.appendChild(dayCell);
+        }
+        
+        tbody.appendChild(row);
+    }
+    console.log('Timetable built successfully!');
+}
+
+// Also populate the file section if needed
+{% if timetable.has_file %}
+console.log('File available for download');
+{% endif %}
 </script>
 {% endif %}
 {% endblock %}

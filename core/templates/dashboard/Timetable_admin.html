@@ -193,7 +193,7 @@
                     <input type="text"
                            id="period_{{ day }}_{{ period }}"
                            placeholder="e.g. Math 10A"
-                           value="{% if timetable and timetable.grid_data %}{{ timetable.grid_data|default_if_none:'' }}{% endif %}"
+                           value=""
                            class="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"/>
                   </td>
                   {% endfor %}
@@ -225,91 +225,180 @@
 </div>
 {% endblock %}
 
+
 {% block extra_js %}
 <script>
-const CSRF      = '{{ csrf_token }}';
-const TEACHER_ID = '{% if selected %}{{ selected.id }}{% endif %}';
-const DAYS    = '{{ days|safe }}';
-const PERIODS = '{{ periods|safe }}';
-
-
-'{% if timetable and timetable.grid_data %}'
-const existingGrid = '{{ timetable.grid_data|safe }}';
-DAYS.forEach(day => {
-  PERIODS.forEach(period => {
-    const el = document.getElementById(`period_${day}_${period}`);
-    if (el && existingGrid[day] && existingGrid[day][period]) {
-      el.value = existingGrid[day][period];
-    }
-  });
-});
-'{% endif %}'
-
-function switchTab(tab) {
-  const isFile = tab === 'file';
-  const fileBtn = document.getElementById('tabFile');
-  const gridBtn = document.getElementById('tabGrid');
-  const panelFile = document.getElementById('panelFile');
-  const panelGrid = document.getElementById('panelGrid');
-  
-  if (isFile) {
-    fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
-    gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
-    panelFile.classList.remove('hidden');
-    panelGrid.classList.add('hidden');
-  } else {
-    gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
-    fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
-    panelGrid.classList.remove('hidden');
-    panelFile.classList.add('hidden');
-  }
-}
-
-async function saveFile() {
-  const fd = new FormData();
-  fd.append('csrfmiddlewaretoken', CSRF);
-  fd.append('teacher_id',  TEACHER_ID);
-  fd.append('mode',        'file');
-  fd.append('session_id',  document.getElementById('fileSessionId').value);
-  fd.append('notes',       document.getElementById('fileNotes').value);
-  const file = document.getElementById('timetableFile').files[0];
-  if (file) fd.append('timetable_file', file);
-
-  const resp = await fetch('{% url "timetable_admin" %}', { method: 'POST', body: fd });
-  const data = await resp.json();
-  showStatus('fileStatus', data.message, data.success);
-}
-
-async function saveGrid() {
-  const fd = new FormData();
-  fd.append('csrfmiddlewaretoken', CSRF);
-  fd.append('teacher_id',  TEACHER_ID);
-  fd.append('mode',        'grid');
-  fd.append('session_id',  document.getElementById('gridSessionId').value);
-  fd.append('notes',       document.getElementById('gridNotes').value);
-
-  DAYS.forEach(day => {
-    PERIODS.forEach(period => {
-      const val = document.getElementById(`period_${day}_${period}`)?.value?.trim();
-      if (val) fd.append(`period_${day}_${period}`, val);
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing...');
+    
+    // Define variables globally
+    window.CSRF = '{{ csrf_token|escapejs }}';
+    window.TEACHER_ID = {% if selected %}{{ selected.id }}{% else %}null{% endif %};
+    window.DAYS = {{ days|safe }};
+    window.PERIODS = {{ periods|safe }};
+    
+    console.log('Variables loaded:', {
+        TEACHER_ID: window.TEACHER_ID,
+        DAYS: window.DAYS,
+        PERIODS: window.PERIODS
     });
-  });
+    
+    // Populate grid if data exists
+    {% if timetable and timetable.grid_data %}
+    try {
+        const existingGrid = {{ timetable.grid_data|safe }};
+        if (existingGrid && typeof existingGrid === 'object') {
+            window.DAYS.forEach(day => {
+                window.PERIODS.forEach(period => {
+                    const el = document.getElementById(`period_${day}_${period}`);
+                    if (el && existingGrid[day] && existingGrid[day][period]) {
+                        el.value = existingGrid[day][period];
+                        console.log(`Set value for ${day}_${period}:`, existingGrid[day][period]);
+                    }
+                });
+            });
+        }
+    } catch(e) {
+        console.error('Error populating grid:', e);
+    }
+    {% endif %}
+});
 
-  const resp = await fetch('{% url "timetable_admin" %}', { method: 'POST', body: fd });
-  const data = await resp.json();
-  showStatus('gridStatus', data.message, data.success);
-}
+// Define functions globally
+window.switchTab = function(tab) {
+    console.log('Switching tab to:', tab);
+    const isFile = tab === 'file';
+    const fileBtn = document.getElementById('tabFile');
+    const gridBtn = document.getElementById('tabGrid');
+    const panelFile = document.getElementById('panelFile');
+    const panelGrid = document.getElementById('panelGrid');
+    
+    if (isFile) {
+        fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
+        gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
+        panelFile.classList.remove('hidden');
+        panelGrid.classList.add('hidden');
+    } else {
+        gridBtn.className = 'flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-primary transition-all';
+        fileBtn.className = 'flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all';
+        panelGrid.classList.remove('hidden');
+        panelFile.classList.add('hidden');
+    }
+};
 
-function showStatus(id, msg, success) {
-  const el = document.getElementById(id);
-  el.className = `rounded-lg px-4 py-3 text-sm font-medium ${success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`;
-  el.innerHTML = `${success ? '<i class="fas fa-check-circle mr-2"></i>' : '<i class="fas fa-exclamation-triangle mr-2"></i>'} ${msg}`;
-  el.classList.remove('hidden');
-  if (success) {
-    setTimeout(() => {
-      el.classList.add('hidden');
-    }, 3000);
-  }
-}
+window.saveFile = async function() {
+    console.log('saveFile called, TEACHER_ID:', window.TEACHER_ID);
+    
+    if (!window.TEACHER_ID) {
+        window.showStatus('fileStatus', 'Please select a teacher first', false);
+        return;
+    }
+    
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', window.CSRF);
+    fd.append('teacher_id', window.TEACHER_ID);
+    fd.append('mode', 'file');
+    
+    const sessionIdElem = document.getElementById('fileSessionId');
+    const notesElem = document.getElementById('fileNotes');
+    const fileElem = document.getElementById('timetableFile');
+    
+    if (sessionIdElem) fd.append('session_id', sessionIdElem.value);
+    if (notesElem) fd.append('notes', notesElem.value);
+    
+    const file = fileElem ? fileElem.files[0] : null;
+    if (file) fd.append('timetable_file', file);
+    
+    console.log('Saving file timetable...');
+    
+    try {
+        const resp = await fetch(window.location.href, { 
+            method: 'POST', 
+            body: fd
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        console.log('Response:', data);
+        window.showStatus('fileStatus', data.message, data.success);
+    } catch (error) {
+        console.error('Save error:', error);
+        window.showStatus('fileStatus', 'Network error. Please try again.', false);
+    }
+};
+
+window.saveGrid = async function() {
+    console.log('saveGrid called, TEACHER_ID:', window.TEACHER_ID);
+    
+    if (!window.TEACHER_ID) {
+        window.showStatus('gridStatus', 'Please select a teacher first', false);
+        return;
+    }
+    
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', window.CSRF);
+    fd.append('teacher_id', window.TEACHER_ID);
+    fd.append('mode', 'grid');
+    
+    const sessionIdElem = document.getElementById('gridSessionId');
+    const notesElem = document.getElementById('gridNotes');
+    
+    if (sessionIdElem) fd.append('session_id', sessionIdElem.value);
+    if (notesElem) fd.append('notes', notesElem.value);
+    
+    if (window.DAYS && window.PERIODS) {
+        window.DAYS.forEach(day => {
+            window.PERIODS.forEach(period => {
+                const el = document.getElementById(`period_${day}_${period}`);
+                const val = el ? el.value?.trim() : '';
+                if (val) {
+                    fd.append(`period_${day}_${period}`, val);
+                    console.log(`Added ${day}_${period}:`, val);
+                }
+            });
+        });
+    }
+    
+    console.log('Saving grid timetable...');
+    
+    try {
+        const resp = await fetch(window.location.href, { 
+            method: 'POST', 
+            body: fd
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        console.log('Response:', data);
+        window.showStatus('gridStatus', data.message, data.success);
+    } catch (error) {
+        console.error('Save error:', error);
+        window.showStatus('gridStatus', 'Network error. Please try again.', false);
+    }
+};
+
+window.showStatus = function(id, msg, success) {
+    const el = document.getElementById(id);
+    if (!el) {
+        console.error('Status element not found:', id);
+        return;
+    }
+    
+    el.className = `rounded-lg px-4 py-3 text-sm font-medium ${success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`;
+    el.innerHTML = `${success ? '<i class="fas fa-check-circle mr-2"></i>' : '<i class="fas fa-exclamation-triangle mr-2"></i>'} ${msg}`;
+    el.classList.remove('hidden');
+    if (success) {
+        setTimeout(() => {
+            el.classList.add('hidden');
+        }, 3000);
+    }
+};
+
+// Debug: Log when script loads
+console.log('Timetable admin script loaded');
+console.log('Functions available:', {
+    saveFile: typeof window.saveFile,
+    saveGrid: typeof window.saveGrid,
+    switchTab: typeof window.switchTab
+});
 </script>
 {% endblock %}
