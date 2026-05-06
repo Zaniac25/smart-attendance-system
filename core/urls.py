@@ -94,4 +94,8 @@ urlpatterns = [
     path('teacher/timetable/download/',
          views.TimetableDownloadView.as_view(),
          name='timetable_download'),
+
+     path('alerts/attendance/',
+         views.AttendanceAlertView.as_view(),
+         name='attendance_alert'),
 ]

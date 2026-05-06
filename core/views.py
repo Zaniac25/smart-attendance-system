@@ -49,6 +49,7 @@ from .serializers import StudentSerializer, MarkAttendanceSerializer
 from .analytics import *
 from .notifications import send_daily_absent_report
 import mimetypes
+from core.smtp_helper import _get_low_attendance_students, _send_alert_to_student
 
 # Optional libs
 try:
@@ -1085,7 +1086,8 @@ class FaceEnrollStudentView(View):
             'message': f'{student.name} enrolled successfully via {source}',
             'student_name': student.name,
             'source': source,
-            'face_url': f'/media/student_faces/{student_id}.jpg?t={int(time.time())}',
+            'dt_time': datetime.now(),
+            'face_url': f'/media/student_faces/{student_id}.jpg?t={int(datetime.now().timestamp())}',
         })
 
 
@@ -2262,3 +2264,93 @@ class TimetableTeacherView(TeacherRequiredMixin, View):
             'course': course, 'branch': branch, 'section': section,
             'batch': batch, 'year': year, 'search': search,
         }
+    
+
+@method_decorator(login_required, name='dispatch')
+class AttendanceAlertView(AdminRequiredMixin, View):
+    """
+    GET  — Dashboard page showing all below-75% students with send buttons.
+    POST (action=bulk)       — Send alert to ALL below-threshold students.
+    POST (action=individual) — Send alert to ONE specific student.
+    """
+ 
+    THRESHOLD = 75   # configurable — change here to adjust the cutoff
+ 
+    def get(self, request):
+        threshold = int(request.GET.get('threshold', self.THRESHOLD))
+        students_with_email, students_no_email = _get_low_attendance_students(threshold)
+ 
+        # Sort by attendance % ascending (worst first)
+        students_with_email.sort(key=lambda s: s.attendance_percentage)
+        students_no_email.sort(key=lambda s: s.attendance_percentage)
+ 
+        # Check SMTP is configured
+        smtp_configured = bool(
+            settings.EMAIL_HOST_USER and
+            settings.EMAIL_HOST_PASSWORD
+        )
+ 
+        return render(request, 'dashboard/attendance_alert.html', {
+            'students_with_email': students_with_email,
+            'students_no_email': students_no_email,
+            'threshold': threshold,
+            'smtp_configured': smtp_configured,
+            'total_below': len(students_with_email) + len(students_no_email),
+            'can_email': len(students_with_email),
+        })
+ 
+    def post(self, request):
+        action     = request.POST.get('action')
+        threshold  = int(request.POST.get('threshold', self.THRESHOLD))
+ 
+        # Individual send 
+        if action == 'individual':
+            student_id = request.POST.get('student_id', '').strip()
+            try:
+                student = Student.objects.get(student_id=student_id)
+            except Student.DoesNotExist:
+                return JsonResponse({'success': False, 'message': f'Student {student_id} not found.'})
+ 
+            success, error = _send_alert_to_student(student)
+            if success:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Alert sent to {student.name} ({student.email})',
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Failed to send to {student.name}: {error}',
+                })
+ 
+        # Bulk send 
+        if action == 'bulk':
+            students_with_email, _ = _get_low_attendance_students(threshold)
+ 
+            sent    = 0
+            failed  = []
+            skipped = 0   # already above threshold by now (edge case)
+ 
+            for student in students_with_email:
+                # Re-check attendance in case it changed
+                if student.attendance_percentage >= threshold:
+                    skipped += 1
+                    continue
+ 
+                success, error = _send_alert_to_student(student)
+                if success:
+                    sent += 1
+                else:
+                    failed.append({'name': student.name, 'error': error})
+ 
+            return JsonResponse({
+                'success':  True,
+                'sent':     sent,
+                'failed':   len(failed),
+                'skipped':  skipped,
+                'failures': failed,
+                'message':  f'{sent} email{"s" if sent != 1 else ""} sent successfully.' +
+                            (f' {len(failed)} failed.' if failed else ''),
+            })
+ 
+        return JsonResponse({'success': False, 'message': 'Unknown action.'}, status=400)
