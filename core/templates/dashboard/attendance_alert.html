@@ -1,0 +1,324 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Attendance Alerts — ABIT Attendance{% endblock %}
+{% block page_title %}Attendance Alerts{% endblock %}
+{% block page_subtitle %}Students below {{ threshold }}% attendance — send email reminders{% endblock %}
+
+{% block header_actions %}
+{% if students_with_email and smtp_configured %}
+<button onclick="sendBulk()" id="bulkBtn" class="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white
+                 text-sm font-semibold px-5 py-2 rounded-lg transition-colors shadow-md">
+    <i class="fas fa-envelope text-sm"></i>
+    Send All ({{ can_email }})
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not smtp_configured %}
+<div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4 mb-6 flex items-start gap-3">
+    <i class="fas fa-exclamation-triangle text-red-500 text-xl flex-shrink-0 mt-0.5"></i>
+    <div>
+        <p class="font-semibold text-red-800">SMTP not configured — emails cannot be sent</p>
+        <p class="text-red-700 text-sm mt-1">
+            Set these environment variables before running Django:
+        </p>
+        <pre class="mt-2 bg-red-100 rounded-lg px-4 py-2 text-xs font-mono text-red-800 overflow-x-auto">export EMAIL_HOST_USER="your_gmail@gmail.com"
+export EMAIL_HOST_PASSWORD="your_16_char_app_password"</pre>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-red-600 uppercase tracking-wide font-medium mb-1">Below {{ threshold }}%</p>
+        <p class="text-3xl font-bold text-red-600">{{ total_below }}</p>
+        <p class="text-xs text-slate-400 mt-1">students</p>
+    </div>
+    <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-blue-600 uppercase tracking-wide font-medium mb-1">Can Email</p>
+        <p class="text-3xl font-bold text-blue-600">{{ can_email }}</p>
+        <p class="text-xs text-slate-400 mt-1">have email on file</p>
+    </div>
+    <div class="bg-white rounded-xl border border-amber-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-amber-600 uppercase tracking-wide font-medium mb-1">No Email</p>
+        <p class="text-3xl font-bold text-amber-600">{{ students_no_email|length }}</p>
+        <p class="text-xs text-slate-400 mt-1">missing email address</p>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">Threshold</p>
+        <div class="flex items-center justify-center gap-2 mt-1">
+            <input type="number" id="thresholdInput" value="{{ threshold }}" min="1" max="100" class="w-16 border border-slate-300 rounded-lg px-2 py-1 text-lg font-bold text-center text-slate-800
+                    focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <span class="text-lg font-bold text-slate-600">%</span>
+        </div>
+        <button onclick="applyThreshold()" class="mt-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium
+                   px-3 py-1 rounded-lg transition-colors">
+            <i class="fas fa-check mr-1"></i> Apply
+        </button>
+    </div>
+</div>
+
+<div id="bulkStatus" class="hidden rounded-xl px-5 py-4 mb-5 text-sm font-medium flex items-center gap-3"></div>
+
+{% if students_with_email %}
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+            <h3 class="font-semibold text-slate-800">
+                <i class="fas fa-users mr-2"></i> Students Below {{ threshold }}% — With Email
+            </h3>
+            <p class="text-slate-500 text-xs mt-0.5">Sorted by attendance (worst first)</p>
+        </div>
+        <span class="text-xs bg-red-100 text-red-700 font-semibold px-3 py-1 rounded-full">
+            <i class="fas fa-envelope mr-1"></i> {{ students_with_email|length }} student{{ students_with_email|length|pluralize }}
+        </span>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-user-graduate mr-1"></i> Student
+                    </th>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-graduation-cap mr-1"></i> Class
+                    </th>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-at mr-1"></i> Email
+                    </th>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-chart-line mr-1"></i> Attendance
+                    </th>
+                    <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-bell mr-1"></i> Action
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students_with_email %}
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors" id="row-{{ student.student_id }}">
+                    <td class="px-4 py-3">
+                        <p class="font-medium text-slate-800">{{ student.name }}</p>
+                        <p class="text-xs font-mono text-slate-400">{{ student.student_id }}</p>
+                    </td>
+                    <td class="px-4 py-3 text-slate-500 text-xs">{{ student.student_class }}</td>
+                    <td class="px-4 py-3 text-slate-600 text-xs">{{ student.email }}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-24 bg-slate-100 rounded-full h-2">
+                                <div class="h-2 rounded-full {% if student.attendance_percentage >= 60 %}bg-amber-400{% else %}bg-red-500{% endif %}" {style="width:{{ student.attendance_percentage }}%" }></div>
+                            </div>
+                            <span class="text-xs font-bold {% if student.attendance_percentage >= 60 %}text-amber-600{% else %}text-red-600{% endif %}">
+                                {{ student.attendance_percentage }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="sendIndividual('{{ student.student_id }}', '{{ student.name }}')" id="btn-{{ student.student_id }}" {% if not smtp_configured %}disabled{% endif %} class="flex items-center gap-1.5 bg-primary hover:bg-blue-900 text-white
+                           text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors mx-auto
+                           disabled:opacity-40 disabled:cursor-not-allowed">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                            Send Alert
+                        </button>
+                        <p id="status-{{ student.student_id }}" class="text-xs mt-1 hidden"></p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if students_no_email %}
+<div class="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-amber-100 flex items-center justify-between">
+        <div>
+            <h3 class="font-semibold text-slate-800">
+                <i class="fas fa-exclamation-triangle mr-2 text-amber-600"></i> Below {{ threshold }}% — No Email on File
+            </h3>
+            <p class="text-slate-500 text-xs mt-0.5">Add emails in student profiles to enable alerts</p>
+        </div>
+        <span class="text-xs bg-amber-100 text-amber-700 font-semibold px-3 py-1 rounded-full">
+            <i class="fas fa-envelope mr-1"></i> {{ students_no_email|length }} student{{ students_no_email|length|pluralize }}
+        </span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-user-graduate mr-1"></i> Student
+                    </th>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-graduation-cap mr-1"></i> Class
+                    </th>
+                    <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-chart-line mr-1"></i> Attendance
+                    </th>
+                    <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
+                        <i class="fas fa-edit mr-1"></i> Action
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students_no_email %}
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3">
+                        <p class="font-medium text-slate-800">{{ student.name }}</p>
+                        <p class="text-xs font-mono text-slate-400">{{ student.student_id }}</p>
+                    </td>
+                    <td class="px-4 py-3 text-slate-500 text-xs">{{ student.student_class }}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-24 bg-slate-100 rounded-full h-2">
+                                <div class="h-2 rounded-full {% if student.attendance_percentage >= 60 %}bg-amber-400{% else %}bg-red-500{% endif %}" {style="width:{{ student.attendance_percentage }}%" }></div>
+                            </div>
+                            <span class="text-xs font-bold {% if student.attendance_percentage >= 60 %}text-amber-600{% else %}text-red-600{% endif %}">
+                                {{ student.attendance_percentage }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <a href="{% url 'student_edit' student.student_id %}" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 font-medium
+                      px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1">
+                            <i class="fas fa-plus-circle mr-1"></i> Add Email →
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if not students_with_email and not students_no_email %}
+<div class="bg-white rounded-xl border border-green-100 shadow-sm p-16 text-center">
+    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-check-circle text-green-600 text-3xl"></i>
+    </div>
+    <h3 class="text-xl font-bold text-slate-800 mb-2">All students are above {{ threshold }}%</h3>
+    <p class="text-slate-500 text-sm">No alerts need to be sent at this time.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CSRF = '{{ csrf_token }}';
+    const THRESHOLD = '{{ threshold }}';
+
+    function applyThreshold() {
+        const val = document.getElementById('thresholdInput').value;
+        if (val && val > 0 && val <= 100) {
+            window.location.href = `{% url 'attendance_alert' %}?threshold=${ val }`;
+        }
+    }
+    document.getElementById('thresholdInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') applyThreshold();
+    });
+
+    async function sendIndividual(studentId, studentName) {
+        const btn = document.getElementById(`btn-${ studentId }`);
+        const status = document.getElementById(`status-${ studentId }`);
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Sending...';
+
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'individual');
+        fd.append('student_id', studentId);
+        fd.append('threshold', THRESHOLD);
+
+        try {
+            const resp = await fetch('{% url "attendance_alert" %}', { method: 'POST', body: fd });
+            const data = await resp.json();
+
+            if (data.success) {
+                btn.innerHTML = '<i class="fas fa-check mr-1"></i> Sent';
+                btn.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg mx-auto bg-green-100 text-green-700';
+                status.textContent = 'Email delivered';
+                status.className = 'text-xs mt-1 text-green-600';
+                status.classList.remove('hidden');
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Retry';
+                btn.className = 'flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors mx-auto';
+                status.textContent = data.message;
+                status.className = 'text-xs mt-1 text-red-500';
+                status.classList.remove('hidden');
+            }
+        } catch (e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Retry';
+            status.textContent = 'Network error';
+            status.className = 'text-xs mt-1 text-red-500';
+            status.classList.remove('hidden');
+        }
+    }
+
+    async function sendBulk() {
+        const count = '{{ can_email }}';
+        if (!confirm(`Send attendance alert emails to all ${ count } student(s) below ${ THRESHOLD }%?`)) return;
+
+        const btn = document.getElementById('bulkBtn');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Sending ${ count } email(s)...`;
+
+        showBulkStatus('Sending emails — please wait...', 'blue');
+
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', 'bulk');
+        fd.append('threshold', THRESHOLD);
+
+        try {
+            const resp = await fetch('{% url "attendance_alert" %}', { method: 'POST', body: fd });
+            const data = await resp.json();
+
+            if (data.success) {
+                let msg = `<i class="fas fa-check-circle mr-2"></i> ${ data.sent } email(s) sent successfully.`;
+                if (data.failed > 0) msg += ` <i class="fas fa-exclamation-triangle mr-1"></i> ${ data.failed } failed.`;
+                if (data.skipped > 0) msg += ` ${ data.skipped } skipped.`;
+
+                showBulkStatus(msg, data.failed > 0 ? 'amber' : 'green');
+
+                if (data.failures && data.failures.length > 0) {
+                    const failList = data.failures.map(f => `${ f.name }: ${ f.error }`).join('\n');
+                    console.warn('Failed emails:', failList);
+                }
+
+                btn.innerHTML = `<i class="fas fa-check mr-2"></i> Sent ${ data.sent }`;
+                btn.className = 'text-xs font-semibold px-5 py-2 rounded-lg bg-green-600 text-white';
+            } else {
+                showBulkStatus(`<i class="fas fa-exclamation-triangle mr-2"></i> Error: ${ data.message }`, 'red');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-envelope mr-2"></i> Send All ({{ can_email }})`;
+            }
+        } catch (e) {
+            showBulkStatus('<i class="fas fa-exclamation-triangle mr-2"></i> Network error — please try again.', 'red');
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-envelope mr-2"></i> Send All ({{ can_email }})`;
+        }
+    }
+
+    function showBulkStatus(msg, color) {
+        const el = document.getElementById('bulkStatus');
+        const styles = {
+            green: 'bg-green-50 border border-green-200 text-green-800',
+            red: 'bg-red-50 border border-red-200 text-red-700',
+            amber: 'bg-amber-50 border border-amber-200 text-amber-800',
+            blue: 'bg-blue-50 border border-blue-200 text-blue-700',
+        };
+        el.className = `rounded-xl px-5 py-4 mb-5 text-sm font-medium flex items-center gap-3 ${ styles[color] }`;
+        el.innerHTML = `<span>${ msg }</span>`;
+        el.classList.remove('hidden');
+    }
+</script>
+{% endblock %}
