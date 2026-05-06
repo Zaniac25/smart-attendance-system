@@ -193,10 +193,7 @@
         Timetables
       </a>
 
-      <a href="{% url 'teacher_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
-        <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
-        My Timetable
-      </a>
+      
       <a href="{% url 'settings' %}" class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
         <i class="fas fa-cog"></i>
         <span>Settings</span>
@@ -220,6 +217,12 @@
         <i class="fas fa-user-graduate"></i>
         <span>My Students</span>
       </a>
+
+      <a href="{% url 'teacher_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
+        <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
+        My Timetable
+      </a>
+
       <a href="{% url 'teacher_reports' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_reports' %}active{% endif %}">
         <i class="fas fa-chart-simple"></i>
         <span>Reports</span>
