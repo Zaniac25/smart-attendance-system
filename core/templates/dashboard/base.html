@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}ABIT Attendance{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Font Awesome 6 (free) - replaces all inline SVGs with professional icon font -->
@@ -14,7 +15,7 @@
         extend: {
           colors: {
             primary: { DEFAULT: '#1e3a5f', light: '#2d5286', dark: '#142844' },
-            accent:  { DEFAULT: '#e8a020', light: '#f0b840' },
+            accent: { DEFAULT: '#e8a020', light: '#f0b840' },
           }
         }
       }
@@ -32,18 +33,23 @@
       font-size: 0.875rem;
       font-weight: 500;
     }
+
     .sidebar-link:hover {
       background-color: #2d5286;
       color: #ffffff;
     }
+
     .sidebar-link.active {
       background-color: #e8a020;
       color: #1e3a5f;
       font-weight: 600;
     }
+
     .sidebar-link.active i {
-      color: #1e3a5f; /* ensure active icon contrast */
+      color: #1e3a5f;
+      /* ensure active icon contrast */
     }
+
     .stat-card {
       background-color: #ffffff;
       border-radius: 0.75rem;
@@ -54,21 +60,28 @@
       align-items: center;
       gap: 1rem;
     }
+
     /* ensure consistent icon width and alignment */
-    .sidebar-link i, .user-icon i, .action-icon i {
+    .sidebar-link i,
+    .user-icon i,
+    .action-icon i {
       width: 1.25rem;
       text-align: center;
       font-size: 1.1rem;
     }
+
     .nav-section-header i {
       font-size: 0.7rem;
       opacity: 0.7;
     }
+
     .sidebar-link:hover i {
       color: white;
     }
+
   </style>
 </head>
+
 <body class="bg-slate-50 text-slate-800 min-h-screen flex">
 
   <!-- Sidebar -->
@@ -80,11 +93,11 @@
         <h1 class="text-white font-bold text-lg leading-tight">ABIT Attendance</h1>
       </div>
       {% if is_admin %}
-        <p class="text-slate-400 text-xs mt-0.5"><i class="fas fa-crown text-xs mr-1"></i> Administrator</p>
+      <p class="text-slate-400 text-xs mt-0.5"><i class="fas fa-crown text-xs mr-1"></i> Administrator</p>
       {% elif is_teacher %}
-        <p class="text-yellow-400 text-xs mt-0.5 font-medium"><i class="fas fa-chalkboard text-xs mr-1"></i> Teacher Portal</p>
+      <p class="text-yellow-400 text-xs mt-0.5 font-medium"><i class="fas fa-chalkboard text-xs mr-1"></i> Teacher Portal</p>
       {% elif is_student %}
-        <p class="text-green-400 text-xs mt-0.5 font-medium"><i class="fas fa-graduation-cap text-xs mr-1"></i> Student Portal</p>
+      <p class="text-green-400 text-xs mt-0.5 font-medium"><i class="fas fa-graduation-cap text-xs mr-1"></i> Student Portal</p>
       {% endif %}
     </div>
 
@@ -93,13 +106,11 @@
 
       {% if is_admin %}
       <!-- ══ ADMIN NAV ══ font-awesome 6 icons -->
-      <a href="{% url 'dashboard' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      <a href="{% url 'dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
         <i class="fas fa-tachometer-alt"></i>
         <span>Dashboard</span>
       </a>
-      <a href="{% url 'scanner' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'scanner' %}active{% endif %}">
+      <a href="{% url 'scanner' %}" class="sidebar-link {% if request.resolver_match.url_name == 'scanner' %}active{% endif %}">
         <i class="fas fa-qrcode"></i>
         <span>Live Scanner</span>
       </a>
@@ -107,38 +118,31 @@
         <i class="fas fa-sliders-h text-[10px]"></i>
         <span>Manage</span>
       </div>
-      <a href="{% url 'students' %}"
-         class="sidebar-link {% if request.resolver_match.url_name in 'students,student_detail,student_edit' %}active{% endif %}">
+      <a href="{% url 'students' %}" class="sidebar-link {% if request.resolver_match.url_name in 'students,student_detail,student_edit' %}active{% endif %}">
         <i class="fas fa-users"></i>
         <span>Students</span>
       </a>
-      <a href="{% url 'student_add' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'student_add' %}active{% endif %}">
+      <a href="{% url 'student_add' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_add' %}active{% endif %}">
         <i class="fas fa-user-plus"></i>
         <span>Add Student</span>
       </a>
-      <a href="{% url 'student_import' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'student_import' %}active{% endif %}">
+      <a href="{% url 'student_import' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_import' %}active{% endif %}">
         <i class="fas fa-file-csv"></i>
         <span>Import CSV</span>
       </a>
-      <a href="{% url 'qr_generate' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'qr_generate' %}active{% endif %}">
+      <a href="{% url 'qr_generate' %}" class="sidebar-link {% if request.resolver_match.url_name == 'qr_generate' %}active{% endif %}">
         <i class="fas fa-qrcode"></i>
         <span>QR Codes</span>
       </a>
-      <a href="{% url 'face_enroll' %}"
-         class="sidebar-link {% if 'face_enroll' in request.resolver_match.url_name %}active{% endif %}">
+      <a href="{% url 'face_enroll' %}" class="sidebar-link {% if 'face_enroll' in request.resolver_match.url_name %}active{% endif %}">
         <i class="fas fa-face-smile"></i>
         <span>Face Enrollment</span>
       </a>
-      <a href="{% url 'manual_attendance' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">
+      <a href="{% url 'manual_attendance' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">
         <i class="fas fa-pen-alt"></i>
         <span>Manual Attendance</span>
       </a>
-      <a href="{% url 'attendance_upload' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'attendance_upload' %}active{% endif %}">
+      <a href="{% url 'attendance_upload' %}" class="sidebar-link {% if request.resolver_match.url_name == 'attendance_upload' %}active{% endif %}">
         <i class="fas fa-upload"></i>
         <span>Upload Attendance</span>
       </a>
@@ -146,67 +150,65 @@
         <i class="fas fa-chart-line text-[10px]"></i>
         <span>Reports</span>
       </div>
-      <a href="{% url 'reports' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
+      <a href="{% url 'reports' %}" class="sidebar-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
         <i class="fas fa-chart-pie"></i>
         <span>Reports</span>
       </a>
-      <a href="{% url 'admin_change_requests' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'admin_change_requests' %}active{% endif %}">
+
+      <a href="{% url 'attendance_alert' %}" class="sidebar-link {% if request.resolver_match.url_name == 'attendance_alert' %}active{% endif %}">
+        <i class="fas fa-bell w-5 h-5 flex-shrink-0"></i>
+        Attendance Alerts
+      </a>
+
+
+      <a href="{% url 'admin_change_requests' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_change_requests' %}active{% endif %}">
         <i class="fas fa-clipboard-list"></i>
         <span>Change Requests</span>
         {% with pending=pending_change_count %}
         {% if pending %}<span class="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ pending }}</span>{% endif %}
         {% endwith %}
       </a>
+
       <div class="pt-2 pb-1 px-4">
-  <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Academic</p>
-</div>
+        <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Academic</p>
+      </div>
 
-<a href="{% url 'academic_sessions' %}"
-   class="sidebar-link {% if request.resolver_match.url_name == 'academic_sessions' %}active{% endif %}">
-  <i class="fas fa-calendar-alt w-5 h-5 flex-shrink-0"></i>
-  Academic Sessions
-</a>
+      <a href="{% url 'academic_sessions' %}" class="sidebar-link {% if request.resolver_match.url_name == 'academic_sessions' %}active{% endif %}">
+        <i class="fas fa-calendar-alt w-5 h-5 flex-shrink-0"></i>
+        Academic Sessions
+      </a>
 
-<a href="{% url 'holidays' %}"
-   class="sidebar-link {% if request.resolver_match.url_name in 'holidays,holiday_upload' %}active{% endif %}">
-  <i class="fas fa-gift w-5 h-5 flex-shrink-0"></i>
-  Holidays
-</a>
+      <a href="{% url 'holidays' %}" class="sidebar-link {% if request.resolver_match.url_name in 'holidays,holiday_upload' %}active{% endif %}">
+        <i class="fas fa-gift w-5 h-5 flex-shrink-0"></i>
+        Holidays
+      </a>
 
-<a href="{% url 'teacher_management' %}"
-   class="sidebar-link {% if request.resolver_match.url_name == 'teacher_management' %}active{% endif %}">
-  <i class="fas fa-chalkboard-teacher w-5 h-5 flex-shrink-0"></i>
-  Manage Teachers
-</a>
+      <a href="{% url 'teacher_management' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_management' %}active{% endif %}">
+        <i class="fas fa-chalkboard-teacher w-5 h-5 flex-shrink-0"></i>
+        Manage Teachers
+      </a>
 
-<a href="{% url 'timetable_admin' %}"
-   class="sidebar-link {% if request.resolver_match.url_name == 'timetable_admin' %}active{% endif %}">
-  <i class="fas fa-table w-5 h-5 flex-shrink-0"></i>
-  Timetables
-</a>
+      <a href="{% url 'timetable_admin' %}" class="sidebar-link {% if request.resolver_match.url_name == 'timetable_admin' %}active{% endif %}">
+        <i class="fas fa-table w-5 h-5 flex-shrink-0"></i>
+        Timetables
+      </a>
 
-<a href="{% url 'teacher_timetable' %}"
-   class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
-  <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
-  My Timetable
-</a>
-      <a href="{% url 'settings' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
+      <a href="{% url 'teacher_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
+        <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
+        My Timetable
+      </a>
+      <a href="{% url 'settings' %}" class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
         <i class="fas fa-cog"></i>
         <span>Settings</span>
       </a>
 
       {% elif is_teacher %}
       <!-- ══ TEACHER NAV ══ with font awesome -->
-      <a href="{% url 'teacher_dashboard' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+      <a href="{% url 'teacher_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
         <i class="fas fa-chalkboard"></i>
         <span>Dashboard</span>
       </a>
-      <a href="{% url 'teacher_scanner' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_scanner' %}active{% endif %}">
+      <a href="{% url 'teacher_scanner' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_scanner' %}active{% endif %}">
         <i class="fas fa-camera"></i>
         <span>Live Scanner</span>
       </a>
@@ -214,13 +216,11 @@
         <i class="fas fa-book-open text-[10px]"></i>
         <span>My Classes</span>
       </div>
-      <a href="{% url 'teacher_students' %}"
-         class="sidebar-link {% if request.resolver_match.url_name in 'teacher_students,teacher_student_detail' %}active{% endif %}">
+      <a href="{% url 'teacher_students' %}" class="sidebar-link {% if request.resolver_match.url_name in 'teacher_students,teacher_student_detail' %}active{% endif %}">
         <i class="fas fa-user-graduate"></i>
         <span>My Students</span>
       </a>
-      <a href="{% url 'teacher_reports' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_reports' %}active{% endif %}">
+      <a href="{% url 'teacher_reports' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_reports' %}active{% endif %}">
         <i class="fas fa-chart-simple"></i>
         <span>Reports</span>
       </a>
@@ -228,26 +228,22 @@
         <i class="fas fa-bolt text-[10px]"></i>
         <span>Actions</span>
       </div>
-      <a href="{% url 'teacher_change_request' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'teacher_change_request' %}active{% endif %}">
+      <a href="{% url 'teacher_change_request' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_change_request' %}active{% endif %}">
         <i class="fas fa-exchange-alt"></i>
         <span>Request Change</span>
       </a>
 
       {% elif is_student %}
       <!-- ══ STUDENT NAV ══ -->
-      <a href="{% url 'student_dashboard' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
+      <a href="{% url 'student_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
         <i class="fas fa-id-card"></i>
         <span>My Dashboard</span>
       </a>
-      <a href="{% url 'student_attendance' %}"
-         class="sidebar-link {% if request.resolver_match.url_name == 'student_attendance' %}active{% endif %}">
+      <a href="{% url 'student_attendance' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_attendance' %}active{% endif %}">
         <i class="fas fa-calendar-check"></i>
         <span>Attendance History</span>
       </a>
-      <a href="{% url 'student_report_download' %}"
-         class="sidebar-link">
+      <a href="{% url 'student_report_download' %}" class="sidebar-link">
         <i class="fas fa-download"></i>
         <span>Download Report</span>
       </a>
@@ -270,13 +266,11 @@
           </p>
         </div>
       </div>
-      <a href="{% url 'password_change' %}"
-         class="flex items-center gap-2 text-slate-400 hover:text-white text-xs transition-colors">
+      <a href="{% url 'password_change' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-xs transition-colors">
         <i class="fas fa-key text-xs"></i>
         <span>Change Password</span>
       </a>
-      <a href="{% url 'logout' %}"
-         class="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
+      <a href="{% url 'logout' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
         <i class="fas fa-sign-out-alt"></i>
         <span>Sign out</span>
       </a>
@@ -305,7 +299,7 @@
   {% block extra_js %}{% endblock %}
   <!-- small script to keep active icon colors consistent on hover (fontawesome handled via CSS) -->
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       // ensure any active link icons have proper color (handled by CSS already)
       // additional helper: if any dynamic classes appear,
       const activeLinks = document.querySelectorAll('.sidebar-link.active i');
@@ -315,4 +309,5 @@
     });
   </script>
 </body>
+
 </html>
