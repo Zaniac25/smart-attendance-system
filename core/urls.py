@@ -37,65 +37,48 @@ urlpatterns = [
     path('api/students/', views.APIStudentList.as_view(), name='api_students'),
     path('api/students/<str:student_id>/', views.APIStudentDetail.as_view(), name='api_student_detail'),
     path('api/reports/daily/', views.APIDailyReport.as_view(), name='api_daily_report'),
-    
+
+    # Teacher routes
     path('teacher/dashboard/', views.TeacherDashboardView.as_view(), name='teacher_dashboard'),
     path('teacher/students/', views.TeacherStudentsView.as_view(), name='teacher_students'),
-    path('teacher/students/<str:student_id>/', views.TeacherStudentDetailView.as_view(),    name='teacher_student_detail'),
+    path('teacher/students/<str:student_id>/', views.TeacherStudentDetailView.as_view(), name='teacher_student_detail'),
     path('teacher/reports/', views.TeacherReportsView.as_view(), name='teacher_reports'),
     path('teacher/export/excel/', views.TeacherExportExcelView.as_view(), name='teacher_export_excel'),
     path('teacher/scanner/', views.TeacherScannerView.as_view(), name='teacher_scanner'),
     path('teacher/change-requests/', views.TeacherChangeRequestView.as_view(), name='teacher_change_request'),
-    
+    path('teacher/timetable/', views.TimetableTeacherView.as_view(), name='teacher_timetable'),
+    path('teacher/timetable/download/', views.TimetableDownloadView.as_view(), name='timetable_download'),
+
+    # Student routes
     path('student/dashboard/', views.StudentDashboardView.as_view(), name='student_dashboard'),
     path('student/attendance/', views.StudentAttendanceView.as_view(), name='student_attendance'),
     path('student/report/download/', views.StudentReportDownloadView.as_view(), name='student_report_download'),
 
+    # Admin routes
     path('dashboard/change-requests/', views.AdminChangeRequestsView.as_view(), name='admin_change_requests'),
 
-    path('account/password-change/',
-         RoleBasedPasswordChangeView.as_view(),
-         name='password_change'),
+    path('account/password-change/', RoleBasedPasswordChangeView.as_view(), name='password_change'),
     path('account/password-change/done/',
          auth_views.PasswordChangeDoneView.as_view(
              template_name='dashboard/password_change_done.html',
          ),
          name='password_change_done'),
 
-    
-    path('sessions/',
-         views.AcademicSessionListView.as_view(),
-         name='academic_sessions'),
-    path('sessions/<int:session_id>/toggle/',
-         views.AcademicSessionToggleView.as_view(),
-         name='session_toggle'),
+    # Academic Sessions — LIST + DETAIL (drill-down)
+    path('sessions/', views.AcademicSessionListView.as_view(), name='academic_sessions'),
+    path('sessions/<int:session_id>/', views.AcademicSessionDetailView.as_view(), name='academic_session_detail'),  # NEW
+    path('sessions/<int:session_id>/toggle/', views.AcademicSessionToggleView.as_view(), name='session_toggle'),
 
-    path('holidays/',
-         views.HolidayListView.as_view(),
-         name='holidays'),
-    path('holidays/upload/',
-         views.HolidayUploadView.as_view(),
-         name='holiday_upload'),
-    path('holidays/<int:holiday_id>/delete/',
-         views.HolidayDeleteView.as_view(),
-         name='holiday_delete'),
-         
-    path('teachers/',
-         views.TeacherManagementView.as_view(),
-         name='teacher_management'),
-    path('timetables/',
-         views.TimetableAdminView.as_view(),
-         name='timetable_admin'),
-    path('timetables/download/<int:teacher_id>/',
-         views.TimetableDownloadView.as_view(),
-         name='timetable_download_admin'),
-    path('teacher/timetable/',
-         views.TimetableTeacherView.as_view(),
-         name='teacher_timetable'),
-    path('teacher/timetable/download/',
-         views.TimetableDownloadView.as_view(),
-         name='timetable_download'),
+    # Holidays
+    path('holidays/', views.HolidayListView.as_view(), name='holidays'),
+    path('holidays/upload/', views.HolidayUploadView.as_view(), name='holiday_upload'),
+    path('holidays/<int:holiday_id>/delete/', views.HolidayDeleteView.as_view(), name='holiday_delete'),
 
-     path('alerts/attendance/',
-         views.AttendanceAlertView.as_view(),
-         name='attendance_alert'),
+    # Teacher management + timetables
+    path('teachers/', views.TeacherManagementView.as_view(), name='teacher_management'),
+    path('timetables/', views.TimetableAdminView.as_view(), name='timetable_admin'),
+    path('timetables/download/<int:teacher_id>/', views.TimetableDownloadView.as_view(), name='timetable_download_admin'),
+
+    # Alerts
+    path('alerts/attendance/', views.AttendanceAlertView.as_view(), name='attendance_alert'),
 ]
