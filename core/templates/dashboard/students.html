@@ -25,6 +25,7 @@
       {% if batch %} · <i class="fas fa-layer-group mr-1"></i> Batch <span class="font-semibold text-indigo-700">{{ batch }}</span>{% endif %}
     </p>
   </div>
+  
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 border-b border-slate-200">
@@ -59,7 +60,7 @@
           <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">
             <i class="fas fa-chart-line mr-1"></i> Attendance %
           </th>
-          <th class="px-4 py-3">
+          <th class="px-4 py-3 text-center">
             <i class="fas fa-cog mr-1"></i>
           </th>
         </tr>
@@ -69,25 +70,21 @@
         <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
           <td class="px-4 py-3 font-mono text-slate-600 text-xs">{{ student.student_id }}</td>
           <td class="px-4 py-3 font-medium text-slate-800">{{ student.name }}</td>
-
           <td class="px-4 py-3 text-xs">
             {% if student.course %}
             <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">{{ student.course }}</span>
             {% else %}—{% endif %}
           </td>
-
           <td class="px-4 py-3 text-xs">
             {% if student.branch %}
             <span class="bg-green-50 text-green-700 px-2 py-0.5 rounded font-medium">{{ student.branch }}</span>
             {% else %}—{% endif %}
           </td>
-
           <td class="px-4 py-3 text-xs">
             {% if student.section %}
             <span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-medium">Sec {{ student.section }}</span>
             {% else %}—{% endif %}
           </td>
-
           <td class="px-4 py-3 text-xs">
             {% if student.batch %}
             <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{{ student.batch }}</span>
@@ -95,65 +92,74 @@
             <span class="text-slate-300">—</span>
             {% endif %}
           </td>
-
           <td class="px-4 py-3 text-xs text-slate-500">
             {{ student.current_year_label|default:"—" }}
-          <td>
-
+          </td>
           <td class="px-4 py-3 text-center">
             {% if student.face_enrolled %}
-            <i class="fas fa-check-circle text-green-500" title="Face enrolled"></i>
+            <i class="fas fa-check-circle text-green-500 text-lg" title="Face enrolled"></i>
             {% else %}
-            <span class="text-slate-300">—</span>
+            <i class="fas fa-times-circle text-slate-300 text-lg" title="Not enrolled"></i>
             {% endif %}
-        </tr>
-
-        <td class="px-4 py-3 text-center">
-          {% if student.qr_generated %}
-          <i class="fas fa-check-circle text-green-500" title="QR generated"></i>
-          {% else %}
-          <span class="text-slate-300">—</span>
-          {% endif %}
-          </tr>
-
-        <td class="px-4 py-3">
-          {% with pct=student.attendance_percentage %}
-          <div class="flex items-center gap-2">
-            <div class="w-16 bg-slate-100 rounded-full h-1.5">
-              <div class="h-1.5 rounded-full {% if pct >= 75 %}bg-green-500{% elif pct >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}" {style="width: {{ pct }}%" }></div>
+          </td>
+          <td class="px-4 py-3 text-center">
+            {% if student.qr_generated %}
+            <i class="fas fa-check-circle text-green-500 text-lg" title="QR generated"></i>
+            {% else %}
+            <i class="fas fa-times-circle text-slate-300 text-lg" title="Not generated"></i>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            {% with pct=student.attendance_percentage %}
+            <div class="flex items-center gap-2">
+              <div class="w-16 bg-slate-100 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full 
+                  {% if pct >= 75 %}bg-green-500
+                  {% elif pct >= 50 %}bg-yellow-400
+                  {% else %}bg-red-400{% endif %}" 
+                  {style="width: {{ pct }}%"}>
+                </div>
+              </div>
+              <span class="text-xs font-semibold 
+                {% if pct >= 75 %}text-green-600
+                {% elif pct >= 50 %}text-yellow-600
+                {% else %}text-red-500{% endif %}">
+                {{ pct }}%
+              </span>
             </div>
-            <span class="text-xs font-semibold {% if pct >= 75 %}text-green-600{% elif pct >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
-              {{ pct }}%
-            </span>
-          </div>
-          {% endwith %}
-        </td>
-
-        <td class="px-4 py-3">
-          <div class="flex items-center gap-3">
-            <a href="{% url 'student_detail' student.student_id %}" class="text-blue-600 hover:text-blue-800 text-xs font-medium">
-              <i class="fas fa-eye mr-1"></i> View
-            </a>
-            <a href="{% url 'student_edit' student.student_id %}" class="text-amber-600 hover:text-amber-800 text-xs font-medium">
-              <i class="fas fa-edit mr-1"></i> Edit
-            </a>
-            <form method="POST" action="{% url 'student_delete' student.student_id %}" onsubmit="return confirm('Delete {{ student.name }}?')">
-              {% csrf_token %}
-              <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-medium">
-                <i class="fas fa-trash-alt mr-1"></i> Delete
-              </button>
-            </form>
-          </div>
-        </td>
+            {% endwith %}
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2 justify-center">
+              <a href="{% url 'student_detail' student.student_id %}" 
+                 class="text-blue-600 hover:text-blue-800 transition-colors" 
+                 title="View">
+                <i class="fas fa-eye"></i>
+              </a>
+              <a href="{% url 'student_edit' student.student_id %}" 
+                 class="text-amber-600 hover:text-amber-800 transition-colors" 
+                 title="Edit">
+                <i class="fas fa-edit"></i>
+              </a>
+              <form method="POST" action="{% url 'student_delete' student.student_id %}" 
+                    onsubmit="return confirm('Delete {{ student.name }}?')" 
+                    class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-red-500 hover:text-red-700 transition-colors" title="Delete">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </form>
+            </div>
+          </td>
         </tr>
         {% empty %}
         <tr>
           <td colspan="11" class="px-6 py-12 text-center text-slate-400">
-            <i class="fas fa-user-graduate fa-2x mx-auto mb-2 opacity-40 block"></i>
-            No students found{% if search or course or branch or section or batch %} matching filters{% endif %}.
+            <i class="fas fa-user-graduate fa-3x mx-auto mb-3 opacity-40 block"></i>
+            <p class="text-sm">No students found{% if search or course or branch or section or batch %} matching filters{% endif %}.</p>
             {% if not search and not course and not branch and not section and not batch %}
-            <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline ml-1">
-              <i class="fas fa-plus-circle mr-1"></i> Add students →
+            <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline inline-flex items-center gap-1 mt-2">
+              <i class="fas fa-plus-circle"></i> Add students
             </a>
             {% endif %}
           </td>
