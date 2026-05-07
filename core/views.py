@@ -68,28 +68,74 @@ except ImportError:
 
 
 def _get_filter_options():
-    """Return distinct courses, branches, sections for dropdown population."""
+    """Return distinct courses, branches, sections, batches for dropdowns."""
+    from .models import COURSE_DURATION
+    courses  = Student.objects.values_list('course',  flat=True).exclude(course='').distinct().order_by('course')
+    branches = Student.objects.values_list('branch',  flat=True).exclude(branch='').distinct().order_by('branch')
+    sections = Student.objects.values_list('section', flat=True).exclude(section='').distinct().order_by('section')
+ 
+    batches = set()
+    for s in Student.objects.exclude(admission_year=None).values('admission_year', 'course'):
+        dur = COURSE_DURATION.get(s['course'], 4)
+        end = s['admission_year'] + dur
+        batches.add(f"{s['admission_year']}-{str(end)[2:]}")
+ 
     return {
-        'courses':  Student.objects.values_list('course',  flat=True).exclude(course='').distinct().order_by('course'),
-        'branches': Student.objects.values_list('branch',  flat=True).exclude(branch='').distinct().order_by('branch'),
-        'sections': Student.objects.values_list('section', flat=True).exclude(section='').distinct().order_by('section'),
+        'courses':  list(courses),
+        'branches': list(branches),
+        'sections': list(sections),
+        'batches':  sorted(batches, reverse=True),
     }
 
 
 def _apply_filters(qs, request):
-    """Apply course/branch/section/search filters from GET params to a Student queryset."""
+    from django.db.models import Q
+    from .models import COURSE_DURATION
+    from .analytics import get_active_session
+ 
     course  = request.GET.get('course',  '').strip()
     branch  = request.GET.get('branch',  '').strip()
     section = request.GET.get('section', '').strip()
+    batch   = request.GET.get('batch',   '').strip()
+    year    = request.GET.get('year',    '').strip()
     search  = request.GET.get('q',       '').strip()
-
-    if course:  qs = qs.filter(course=course)
-    if branch:  qs = qs.filter(branch=branch)
-    if section: qs = qs.filter(section=section)
+ 
+    if course:  qs = qs.filter(course__iexact=course)
+    if branch:  qs = qs.filter(branch__iexact=branch)
+    if section: qs = qs.filter(section__iexact=section)
+ 
+    if batch:
+        try:
+            admission_year = int(batch.split('-')[0])
+            qs = qs.filter(admission_year=admission_year)
+        except (ValueError, IndexError):
+            pass
+ 
+    if year and course:
+        year_map = {'1st Year': 1, '2nd Year': 2, '3rd Year': 3, '4th Year': 4}
+        year_num = year_map.get(year)
+        if year_num:
+            session = get_active_session(course)
+            if session:
+                session_start = session.start_date.year
+            else:
+                from django.utils import timezone
+                today = timezone.localdate()
+                session_start = today.year if today.month >= 7 else today.year - 1
+            admission_year = session_start - year_num + 1
+            qs = qs.filter(admission_year=admission_year)
+ 
     if search:
-        qs = qs.filter(name__icontains=search) | qs.filter(student_id__icontains=search)
-
-    return qs, {'course': course, 'branch': branch, 'section': section, 'search': search}
+        qs = qs.filter(
+            Q(name__icontains=search) |
+            Q(student_id__icontains=search) |
+            Q(roll_number__icontains=search)
+        )
+ 
+    return qs, {
+        'course': course, 'branch': branch, 'section': section,
+        'batch': batch, 'year': year, 'search': search,
+    }
 
 
 def _generate_qr_bytes(student):
@@ -202,10 +248,23 @@ class LogoutView(View):
 class DashboardView(View):
     def get(self, request):
         today = timezone.localdate()
+        stats = get_dashboard_stats()
+ 
+        # Role routing for non-admin users who hit /
+        if is_student(request.user):
+            return redirect('student_dashboard')
+        if is_teacher(request.user):
+            return redirect('teacher_dashboard')
+ 
         context = {
-            'stats': get_dashboard_stats(),
+            'stats':        stats,
             'class_report': get_classwise_report(today),
-            'today': today,
+            'today':        today,
+            # Holiday/Sunday data for the dashboard banner
+            'today_is_working': stats['today_is_working'],
+            'today_is_sunday':  stats['today_is_sunday'],
+            'today_is_holiday': stats['today_is_holiday'],
+            'holiday_name':     stats['holiday_name'],
             **{k: json.dumps(v) for k, v in [
                 ('trend_labels',  get_weekly_trend(7)['labels']),
                 ('trend_present', get_weekly_trend(7)['present']),
@@ -219,7 +278,30 @@ class DashboardView(View):
 @method_decorator(login_required, name='dispatch')
 class ScannerPageView(View):
     def get(self, request):
-        return render(request, 'dashboard/scanner.html')
+        from .models import is_today_a_working_day, Holiday
+        from .analytics import get_active_session, get_all_holiday_dates
+        from django.utils import timezone
+ 
+        today = timezone.localdate()
+        is_working, reason = is_today_a_working_day()
+ 
+        session      = get_active_session()
+        holiday_dates = get_all_holiday_dates(session)
+ 
+        today_is_sunday  = today.weekday() == 6
+        today_is_holiday = today in holiday_dates
+        holiday_name = None
+        if today_is_holiday:
+            h = Holiday.objects.filter(date=today).first()
+            holiday_name = h.name if h else 'Holiday'
+ 
+        return render(request, 'dashboard/scanner.html', {
+            'today':            today,
+            'today_is_working': is_working,
+            'today_is_sunday':  today_is_sunday,
+            'today_is_holiday': today_is_holiday,
+            'holiday_name':     holiday_name,
+        })
 
 
 @method_decorator(login_required, name='dispatch')
@@ -237,33 +319,44 @@ class ProcessFrameView(View):
         Returns: success | face_mismatch | face_not_enrolled | no_face | already_marked
     """
     def post(self, request):
+        # ── Holiday / Sunday guard — MUST be first ────────────────────────────
+        from .models import is_today_a_working_day
+        is_working, reason = is_today_a_working_day()
+        if not is_working:
+            return JsonResponse({
+                'status':  'holiday',
+                'message': reason,
+                'icon':    '🚫',
+            })
+        # ─────────────────────────────────────────────────────────────────────
+ 
         mode = request.POST.get('mode', 'qr_only')
         frame_file = request.FILES.get('frame')
         if not frame_file:
             return JsonResponse({'status': 'no_frame'}, status=400)
-
+ 
         image_bytes = frame_file.read()
-
-
+ 
+        # ── QR decode mode ─────────────────────────────────────────────────
         if mode == 'qr_only':
             qr_results = _decode_qr_from_bytes(image_bytes)
             if not qr_results:
                 return JsonResponse({'status': 'no_qr'})
-
+ 
             parts = qr_results[0].split('|')
             if len(parts) != 3:
                 return JsonResponse({'status': 'invalid_qr'})
-
-            student_id = parts[0].strip()
+ 
+            student_id    = parts[0].strip()
             student_name  = parts[1].strip()
             student_class = parts[2].strip()
-
+ 
             try:
                 student = Student.objects.get(student_id=student_id)
             except Student.DoesNotExist:
                 return JsonResponse({'status': 'unknown_student',
                                      'message': f'Student {student_id} not in database'})
-            
+ 
             # Teacher scope guard
             if is_teacher(request.user):
                 try:
@@ -275,58 +368,55 @@ class ProcessFrameView(View):
                         })
                 except TeacherProfile.DoesNotExist:
                     return JsonResponse({'status': 'error', 'message': 'Teacher profile not configured.'})
-
-            # Check duplicate before moving to face phase
+ 
             if Attendance.objects.filter(student=student, date=timezone.localdate()).exists():
                 return JsonResponse({
                     'status': 'already_marked',
                     'student_name': student.name,
                     'student_class': student.student_class,
                 })
-
+ 
             return JsonResponse({
-                'status': 'qr_detected',
-                'student_id': student.student_id,
-                'student_name': student.name,
+                'status':        'qr_detected',
+                'student_id':    student.student_id,
+                'student_name':  student.name,
                 'student_class': student.student_class,
             })
-
-
+ 
+        # ── Face + mark mode ───────────────────────────────────────────────
         if mode == 'face_and_mark':
             student_id = request.POST.get('student_id', '').strip()
             if not student_id:
                 return JsonResponse({'status': 'error', 'message': 'student_id required'}, status=400)
-
+ 
             try:
                 student = Student.objects.get(student_id=student_id)
             except Student.DoesNotExist:
                 return JsonResponse({'status': 'unknown_student'})
-
-        
-        from datetime import datetime as dt
-        now_time = dt.now().time()
-        config = AttendanceSettings.objects.filter(pk=1).first()
-        if config:
-            if now_time < config.attendance_start_time:
-                return JsonResponse({
-                    'status': 'outside_window',
-                    'message': f'Attendance not open yet. Opens at {config.attendance_start_time.strftime("%I:%M %p")}',
-                })
-            if now_time > config.attendance_end_time:
-                return JsonResponse({
-                    'status': 'outside_window',
-                    'message': f'Attendance window closed at {config.attendance_end_time.strftime("%I:%M %p")}',
-                })
-
-            # Double-check duplicate (race condition guard)
+ 
+            # Time window check
+            from datetime import datetime as dt
+            now_time = dt.now().time()
+            config = AttendanceSettings.objects.filter(pk=1).first()
+            if config:
+                if now_time < config.attendance_start_time:
+                    return JsonResponse({
+                        'status':  'outside_window',
+                        'message': f'Attendance not open yet. Opens at {config.attendance_start_time.strftime("%I:%M %p")}',
+                    })
+                if now_time > config.attendance_end_time:
+                    return JsonResponse({
+                        'status':  'outside_window',
+                        'message': f'Attendance window closed at {config.attendance_end_time.strftime("%I:%M %p")}',
+                    })
+ 
             if Attendance.objects.filter(student=student, date=timezone.localdate()).exists():
                 return JsonResponse({'status': 'already_marked',
                                      'student_name': student.name,
                                      'student_class': student.student_class})
-
+ 
             # Face verification
             if FACE_RECOGNITION_AVAILABLE:
-                # Check enrollment first
                 encodings_path = None
                 for path in [
                     os.path.join(settings.BASE_DIR, 'face_encodings.pkl'),
@@ -335,58 +425,49 @@ class ProcessFrameView(View):
                     if os.path.exists(path):
                         encodings_path = path
                         break
-
+ 
                 if encodings_path:
                     with open(encodings_path, 'rb') as f:
                         encodings = pickle.load(f)
                     if student_id not in encodings:
                         return JsonResponse({
-                            'status': 'face_not_enrolled',
-                            'student_name': student.name,
+                            'status':        'face_not_enrolled',
+                            'student_name':  student.name,
                             'student_class': student.student_class,
                         })
-
+ 
                 verified, face_msg = _verify_face(image_bytes, student_id, strict=True)
-
-                # No face detected — tell frontend to keep trying
                 if not verified and 'No face' in face_msg:
                     return JsonResponse({'status': 'no_face'})
-
                 if not verified:
                     return JsonResponse({
-                        'status': 'face_mismatch',
+                        'status':       'face_mismatch',
                         'student_name': student.name,
                         'student_class': student.student_class,
-                        'message': face_msg,
+                        'message':      face_msg,
                     })
-
-            # Mark attendance
+ 
             # Mark attendance
             now = datetime.now()
-            from django.utils import timezone as django_timezone
-
-            # Use get_or_create to handle duplicate entries gracefully
             record, created = Attendance.objects.get_or_create(
                 student=student,
                 date=now.date(),
                 defaults={'time': now.time()}
             )
-
             if not created:
-                # Record already existed, update the time
                 record.time = now.time()
                 record.save(update_fields=['time'])
-
+ 
             return JsonResponse({
-                'status': 'success',
+                'status':       'success',
                 'student_name': student.name,
                 'student_class': student.student_class,
-                'student_id': student_id,
-                'time': now.strftime('%I:%M %p'),
-                'is_late': record.is_late,
-                'new_record': created  # So frontend knows if this was a new entry or update
+                'student_id':   student_id,
+                'time':         now.strftime('%I:%M %p'),
+                'is_late':      record.is_late,
+                'new_record':   created,
             })
-
+ 
         return JsonResponse({'status': 'error', 'message': 'Invalid mode'}, status=400)
 
 
@@ -489,18 +570,37 @@ class StudentsView(View):
 @method_decorator(login_required, name='dispatch')
 class StudentAddView(View):
     def get(self, request):
-        return render(request, 'dashboard/student_form.html',
-                      {'action': 'Add', **_get_filter_options()})
-
+        from .models import AcademicSession
+        return render(request, 'dashboard/student_form.html', {
+            'action': 'Add',
+            'all_sessions': AcademicSession.objects.all().order_by('-start_date'),
+            **_get_filter_options(),
+        })
+ 
     def post(self, request):
-        sid     = request.POST.get('student_id',    '').strip()
-        name    = request.POST.get('name',          '').strip()
-        course  = request.POST.get('course',        '').strip()
-        branch  = request.POST.get('branch',        '').strip()
-        section = request.POST.get('section',       '').strip()
-        cls     = request.POST.get('student_class', '').strip()  # fallback if no course/branch
-        email   = request.POST.get('email',         '').strip()
-
+        from .models import AcademicSession, parse_roll_number
+        sid            = request.POST.get('student_id',    '').strip()
+        name           = request.POST.get('name',          '').strip()
+        course         = request.POST.get('course',        '').strip()
+        branch         = request.POST.get('branch',        '').strip()
+        section        = request.POST.get('section',       '').strip()
+        email          = request.POST.get('email',         '').strip()
+        roll_number    = request.POST.get('roll_number',   '').strip()
+        session_id     = request.POST.get('session_id',    '').strip() or None
+ 
+        # Parse admission year
+        admission_year = None
+        raw_year = request.POST.get('admission_year', '').strip()
+        if raw_year:
+            try:
+                admission_year = int(raw_year)
+            except ValueError:
+                pass
+        if not admission_year and roll_number:
+            yr, ok = parse_roll_number(roll_number)
+            if ok and yr:
+                admission_year = yr
+ 
         errors = {}
         if not sid:
             errors['student_id'] = 'Required.'
@@ -508,23 +608,26 @@ class StudentAddView(View):
             errors['student_id'] = f'ID "{sid}" already exists.'
         if not name:
             errors['name'] = 'Required.'
-        if not course and not cls:
+        if not course:
             errors['course'] = 'Course is required.'
-
+ 
         if errors:
-            return render(request, 'dashboard/student_form.html',
-                          {'action': 'Add', 'errors': errors,
-                           'data': request.POST, **_get_filter_options()})
-
-        student = Student(student_id=sid, name=name, course=course,
-                          branch=branch, section=section, email=email or None)
-        # If no course/branch provided, use raw student_class field
-        if not course and cls:
-            student.course = ''
-            student.branch = ''
-            student.section = ''
-            student.student_class = cls
-            Student.objects.filter(pk=student.pk).update(student_class=cls)
+            return render(request, 'dashboard/student_form.html', {
+                'action': 'Add', 'errors': errors,
+                'data': request.POST,
+                'all_sessions': AcademicSession.objects.all().order_by('-start_date'),
+                **_get_filter_options(),
+            })
+ 
+        session = None
+        if session_id:
+            session = AcademicSession.objects.filter(id=session_id).first()
+ 
+        student = Student(
+            student_id=sid, name=name, course=course, branch=branch,
+            section=section, email=email or None, roll_number=roll_number,
+            admission_year=admission_year, session=session,
+        )
         student.save()
         return redirect('students')
 
@@ -532,6 +635,7 @@ class StudentAddView(View):
 @method_decorator(login_required, name='dispatch')
 class StudentEditView(View):
     def get(self, request, student_id):
+        from .models import AcademicSession
         s = get_object_or_404(Student, student_id=student_id)
         return render(request, 'dashboard/student_form.html', {
             'action': 'Edit', 'student': s,
@@ -543,37 +647,62 @@ class StudentEditView(View):
                 'section':       s.section,
                 'student_class': s.student_class,
                 'email':         s.email or '',
+                'roll_number':   s.roll_number or '',
+                'admission_year': s.admission_year or '',
+                'session_id':    str(s.session_id) if s.session_id else '',
             },
+            'all_sessions': AcademicSession.objects.all().order_by('-start_date'),
             **_get_filter_options(),
         })
-
+ 
     def post(self, request, student_id):
-        s       = get_object_or_404(Student, student_id=student_id)
-        name    = request.POST.get('name',    '').strip()
-        course  = request.POST.get('course',  '').strip()
-        branch  = request.POST.get('branch',  '').strip()
-        section = request.POST.get('section', '').strip()
-        email   = request.POST.get('email',   '').strip()
-
+        from .models import AcademicSession, parse_roll_number
+        s           = get_object_or_404(Student, student_id=student_id)
+        name        = request.POST.get('name',    '').strip()
+        course      = request.POST.get('course',  '').strip()
+        branch      = request.POST.get('branch',  '').strip()
+        section     = request.POST.get('section', '').strip()
+        email       = request.POST.get('email',   '').strip()
+        roll_number = request.POST.get('roll_number', '').strip()
+        session_id  = request.POST.get('session_id', '').strip() or None
+ 
+        admission_year = None
+        raw_year = request.POST.get('admission_year', '').strip()
+        if raw_year:
+            try:
+                admission_year = int(raw_year)
+            except ValueError:
+                pass
+        if not admission_year and roll_number:
+            yr, ok = parse_roll_number(roll_number)
+            if ok and yr:
+                admission_year = yr
+ 
         errors = {}
-        if not name:
-            errors['name'] = 'Required.'
-        if not course:
-            errors['course'] = 'Required.'
+        if not name:   errors['name']   = 'Required.'
+        if not course: errors['course'] = 'Required.'
         if errors:
-            return render(request, 'dashboard/student_form.html',
-                          {'action': 'Edit', 'student': s,
-                           'errors': errors, 'data': request.POST,
-                           **_get_filter_options()})
-
-        s.name    = name
-        s.course  = course
-        s.branch  = branch
-        s.section = section
-        s.email   = email or None
+            return render(request, 'dashboard/student_form.html', {
+                'action': 'Edit', 'student': s,
+                'errors': errors, 'data': request.POST,
+                'all_sessions': AcademicSession.objects.all().order_by('-start_date'),
+                **_get_filter_options(),
+            })
+ 
+        session = None
+        if session_id:
+            session = AcademicSession.objects.filter(id=session_id).first()
+ 
+        s.name           = name
+        s.course         = course
+        s.branch         = branch
+        s.section        = section
+        s.email          = email or None
+        s.roll_number    = roll_number
+        s.admission_year = admission_year
+        s.session        = session
         s.save()
         return redirect('student_detail', student_id=student_id)
-
 
 @method_decorator(login_required, name='dispatch')
 class StudentDeleteView(View):
@@ -1831,6 +1960,58 @@ class AcademicSessionToggleView(AdminRequiredMixin, View):
             session.delete()
             return JsonResponse({'success': True, 'deleted': True})
         return JsonResponse({'success': True, 'is_active': session.is_active})
+    
+
+@method_decorator(login_required, name='dispatch')
+class AcademicSessionDetailView(AdminRequiredMixin, View):
+    """
+    Drill-down: session → branches → sections → students.
+    GET /sessions/<id>/                         → shows all branches
+    GET /sessions/<id>/?branch=CSE              → shows sections inside branch
+    GET /sessions/<id>/?branch=CSE&section=A    → shows students in section
+    """
+    def get(self, request, session_id):
+        from collections import defaultdict
+        session = get_object_or_404(AcademicSession, id=session_id)
+ 
+        selected_branch  = request.GET.get('branch',  '').strip()
+        selected_section = request.GET.get('section', '').strip()
+ 
+        # Students for the filtered view
+        students_qs = session.students.all().order_by('branch', 'section', 'name')
+        if selected_branch:
+            students_qs = students_qs.filter(branch__iexact=selected_branch)
+        if selected_section:
+            students_qs = students_qs.filter(section__iexact=selected_section)
+ 
+        # Always build the full structure for navigation
+        structure = defaultdict(lambda: defaultdict(list))
+        for s in session.students.all():
+            structure[s.branch or '—'][s.section or '—'].append(s)
+ 
+        branches_list = []
+        for br in sorted(structure.keys()):
+            sections_list = [{
+                'section': sec,
+                'total':   len(structure[br][sec]),
+            } for sec in sorted(structure[br].keys())]
+            branches_list.append({
+                'branch':   br,
+                'sections': sections_list,
+                'total':    sum(len(structure[br][sec]) for sec in structure[br]),
+            })
+ 
+        context = {
+            'session':          session,
+            'branches':         branches_list,
+            'students':         students_qs,
+            'selected_branch':  selected_branch,
+            'selected_section': selected_section,
+            'total_enrolled':   session.students.count(),
+            'working_days':     session.get_working_days(),
+            'holiday_count':    session.holidays.count(),
+        }
+        return render(request, 'dashboard/academic_session_detail.html', context)
 
 
  

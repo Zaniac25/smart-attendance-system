@@ -150,7 +150,10 @@
               <!-- Quick branch chips -->
               {% if session.students.count %}
               <div class="flex flex-wrap gap-1 mt-2">
-                {% for branch in session.students.values_list('branch', flat=True)|dictsort:0|list %}
+                {% for branch in session.students.values_list|dictsort:"branch" %}
+                {% if branch.0 %}
+                {{branch.0}}
+                {% endif %}
                 {% endfor %}
                 <a href="{% url 'academic_session_detail' session.id %}"
                    class="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1">
