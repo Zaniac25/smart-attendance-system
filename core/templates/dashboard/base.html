@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}ABIT Attendance{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome 6 (free) - replaces all inline SVGs with professional icon font -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
@@ -47,270 +46,166 @@
 
     .sidebar-link.active i {
       color: #1e3a5f;
-      /* ensure active icon contrast */
     }
 
-    .stat-card {
-      background-color: #ffffff;
-      border-radius: 0.75rem;
-      padding: 1.25rem;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-      border: 1px solid #e2e8f0;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+    /* Hide scrollbar for sidebar but keep functionality */
+    #sidebar {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
 
-    /* ensure consistent icon width and alignment */
-    .sidebar-link i,
-    .user-icon i,
-    .action-icon i {
-      width: 1.25rem;
-      text-align: center;
-      font-size: 1.1rem;
+    #sidebar::-webkit-scrollbar {
+      display: none;
     }
 
-    .nav-section-header i {
-      font-size: 0.7rem;
-      opacity: 0.7;
+    .sidebar-nav {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
 
-    .sidebar-link:hover i {
-      color: white;
+    .sidebar-nav::-webkit-scrollbar {
+      display: none;
     }
-
   </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 min-h-screen flex">
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- Mobile menu button -->
+  <button id="menuBtn" class="lg:hidden fixed top-4 left-4 z-50 bg-primary text-white p-2 rounded-lg shadow-lg">
+    <i class="fas fa-bars text-xl"></i>
+  </button>
 
   <!-- Sidebar -->
-  <aside class="w-64 bg-primary min-h-screen flex flex-col fixed top-0 left-0 z-10 shadow-xl">
-    <!-- Logo -->
+  <aside id="sidebar" class="fixed top-0 left-0 w-64 bg-primary h-full z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out overflow-y-auto">
     <div class="px-6 py-5 border-b border-primary-light">
-      <div class="flex items-center gap-2">
-        <i class="fas fa-chalkboard-user text-accent text-xl"></i>
-        <h1 class="text-white font-bold text-lg leading-tight">ABIT Attendance</h1>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-chalkboard-user text-accent text-xl"></i>
+          <h1 class="text-white font-bold text-lg">ABIT Attendance</h1>
+        </div>
+        <button id="closeBtn" class="lg:hidden text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
       </div>
       {% if is_admin %}
-      <p class="text-slate-400 text-xs mt-0.5"><i class="fas fa-crown text-xs mr-1"></i> Administrator</p>
+      <p class="text-slate-400 text-xs mt-1"><i class="fas fa-crown text-xs"></i> Administrator</p>
       {% elif is_teacher %}
-      <p class="text-yellow-400 text-xs mt-0.5 font-medium"><i class="fas fa-chalkboard text-xs mr-1"></i> Teacher Portal</p>
+      <p class="text-yellow-400 text-xs mt-1"><i class="fas fa-chalkboard text-xs"></i> Teacher Portal</p>
       {% elif is_student %}
-      <p class="text-green-400 text-xs mt-0.5 font-medium"><i class="fas fa-graduation-cap text-xs mr-1"></i> Student Portal</p>
+      <p class="text-green-400 text-xs mt-1"><i class="fas fa-graduation-cap text-xs"></i> Student Portal</p>
       {% endif %}
     </div>
 
-    <!-- Nav links — role-aware with Font Awesome Icons (replaced SVG completely) -->
-    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-
+    <nav class="px-3 py-4 space-y-1">
       {% if is_admin %}
-      <!-- ══ ADMIN NAV ══ font-awesome 6 icons -->
       <a href="{% url 'dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-        <i class="fas fa-tachometer-alt"></i>
-        <span>Dashboard</span>
+        <i class="fas fa-tachometer-alt w-5"></i> Dashboard
       </a>
       <a href="{% url 'scanner' %}" class="sidebar-link {% if request.resolver_match.url_name == 'scanner' %}active{% endif %}">
-        <i class="fas fa-qrcode"></i>
-        <span>Live Scanner</span>
+        <i class="fas fa-qrcode w-5"></i> Live Scanner
       </a>
-      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
-        <i class="fas fa-sliders-h text-[10px]"></i>
-        <span>Manage</span>
-      </div>
-      <a href="{% url 'students' %}" class="sidebar-link {% if request.resolver_match.url_name in 'students,student_detail,student_edit' %}active{% endif %}">
-        <i class="fas fa-users"></i>
-        <span>Students</span>
-      </a>
-      <a href="{% url 'student_add' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_add' %}active{% endif %}">
-        <i class="fas fa-user-plus"></i>
-        <span>Add Student</span>
-      </a>
-      <a href="{% url 'student_import' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_import' %}active{% endif %}">
-        <i class="fas fa-file-csv"></i>
-        <span>Import CSV</span>
-      </a>
-      <a href="{% url 'qr_generate' %}" class="sidebar-link {% if request.resolver_match.url_name == 'qr_generate' %}active{% endif %}">
-        <i class="fas fa-qrcode"></i>
-        <span>QR Codes</span>
-      </a>
-      <a href="{% url 'face_enroll' %}" class="sidebar-link {% if 'face_enroll' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="fas fa-face-smile"></i>
-        <span>Face Enrollment</span>
-      </a>
-      <a href="{% url 'manual_attendance' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manual_attendance' %}active{% endif %}">
-        <i class="fas fa-pen-alt"></i>
-        <span>Manual Attendance</span>
-      </a>
-      <a href="{% url 'attendance_upload' %}" class="sidebar-link {% if request.resolver_match.url_name == 'attendance_upload' %}active{% endif %}">
-        <i class="fas fa-upload"></i>
-        <span>Upload Attendance</span>
-      </a>
-      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
-        <i class="fas fa-chart-line text-[10px]"></i>
-        <span>Reports</span>
-      </div>
-      <a href="{% url 'reports' %}" class="sidebar-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
-        <i class="fas fa-chart-pie"></i>
-        <span>Reports</span>
-      </a>
-
-      <a href="{% url 'attendance_alert' %}" class="sidebar-link {% if request.resolver_match.url_name == 'attendance_alert' %}active{% endif %}">
-        <i class="fas fa-bell w-5 h-5 flex-shrink-0"></i>
-        Attendance Alerts
-      </a>
-
-
-      <a href="{% url 'admin_change_requests' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_change_requests' %}active{% endif %}">
-        <i class="fas fa-clipboard-list"></i>
-        <span>Change Requests</span>
-        {% with pending=pending_change_count %}
-        {% if pending %}<span class="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ pending }}</span>{% endif %}
-        {% endwith %}
-      </a>
-
-      <div class="pt-2 pb-1 px-4">
-        <p class="text-slate-500 text-xs font-semibold uppercase tracking-widest">Academic</p>
-      </div>
-
-      <a href="{% url 'academic_sessions' %}" class="sidebar-link {% if request.resolver_match.url_name == 'academic_sessions' %}active{% endif %}">
-        <i class="fas fa-calendar-alt w-5 h-5 flex-shrink-0"></i>
-        Academic Sessions
-      </a>
-
-      <a href="{% url 'holidays' %}" class="sidebar-link {% if request.resolver_match.url_name in 'holidays,holiday_upload' %}active{% endif %}">
-        <i class="fas fa-gift w-5 h-5 flex-shrink-0"></i>
-        Holidays
-      </a>
-
-      <a href="{% url 'teacher_management' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_management' %}active{% endif %}">
-        <i class="fas fa-chalkboard-teacher w-5 h-5 flex-shrink-0"></i>
-        Manage Teachers
-      </a>
-
-      <a href="{% url 'timetable_admin' %}" class="sidebar-link {% if request.resolver_match.url_name == 'timetable_admin' %}active{% endif %}">
-        <i class="fas fa-table w-5 h-5 flex-shrink-0"></i>
-        Timetables
-      </a>
-
-      
-      <a href="{% url 'settings' %}" class="sidebar-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
-        <i class="fas fa-cog"></i>
-        <span>Settings</span>
-      </a>
+      <div class="pt-3 pb-1 px-4 text-slate-500 text-xs font-semibold uppercase">Manage</div>
+      <a href="{% url 'students' %}" class="sidebar-link"><i class="fas fa-users w-5"></i> Students</a>
+      <a href="{% url 'student_add' %}" class="sidebar-link"><i class="fas fa-user-plus w-5"></i> Add Student</a>
+      <a href="{% url 'student_import' %}" class="sidebar-link"><i class="fas fa-file-csv w-5"></i> Import CSV</a>
+      <a href="{% url 'qr_generate' %}" class="sidebar-link"><i class="fas fa-qrcode w-5"></i> QR Codes</a>
+      <a href="{% url 'face_enroll' %}" class="sidebar-link"><i class="fas fa-face-smile w-5"></i> Face Enrollment</a>
+      <a href="{% url 'manual_attendance' %}" class="sidebar-link"><i class="fas fa-pen-alt w-5"></i> Manual Attendance</a>
+      <a href="{% url 'attendance_upload' %}" class="sidebar-link"><i class="fas fa-upload w-5"></i> Upload Attendance</a>
+      <div class="pt-3 pb-1 px-4 text-slate-500 text-xs font-semibold uppercase">Reports</div>
+      <a href="{% url 'reports' %}" class="sidebar-link"><i class="fas fa-chart-pie w-5"></i> Reports</a>
+      <a href="{% url 'attendance_alert' %}" class="sidebar-link"><i class="fas fa-bell w-5"></i> Attendance Alerts</a>
+      <a href="{% url 'admin_change_requests' %}" class="sidebar-link"><i class="fas fa-clipboard-list w-5"></i> Change Requests</a>
+      <div class="pt-3 pb-1 px-4 text-slate-500 text-xs font-semibold uppercase">Academic</div>
+      <a href="{% url 'academic_sessions' %}" class="sidebar-link"><i class="fas fa-calendar-alt w-5"></i> Academic Sessions</a>
+      <a href="{% url 'holidays' %}" class="sidebar-link"><i class="fas fa-gift w-5"></i> Holidays</a>
+      <a href="{% url 'teacher_management' %}" class="sidebar-link"><i class="fas fa-chalkboard-teacher w-5"></i> Manage Teachers</a>
+      <a href="{% url 'timetable_admin' %}" class="sidebar-link"><i class="fas fa-table w-5"></i> Timetables</a>
+      <a href="{% url 'settings' %}" class="sidebar-link"><i class="fas fa-cog w-5"></i> Settings</a>
 
       {% elif is_teacher %}
-      <!-- ══ TEACHER NAV ══ with font awesome -->
-      <a href="{% url 'teacher_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
-        <i class="fas fa-chalkboard"></i>
-        <span>Dashboard</span>
-      </a>
-      <a href="{% url 'teacher_scanner' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_scanner' %}active{% endif %}">
-        <i class="fas fa-camera"></i>
-        <span>Live Scanner</span>
-      </a>
-      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
-        <i class="fas fa-book-open text-[10px]"></i>
-        <span>My Classes</span>
-      </div>
-      <a href="{% url 'teacher_students' %}" class="sidebar-link {% if request.resolver_match.url_name in 'teacher_students,teacher_student_detail' %}active{% endif %}">
-        <i class="fas fa-user-graduate"></i>
-        <span>My Students</span>
-      </a>
-
-      <a href="{% url 'teacher_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_timetable' %}active{% endif %}">
-        <i class="fas fa-calendar-week w-5 h-5 flex-shrink-0"></i>
-        My Timetable
-      </a>
-
-      <a href="{% url 'teacher_reports' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_reports' %}active{% endif %}">
-        <i class="fas fa-chart-simple"></i>
-        <span>Reports</span>
-      </a>
-      <div class="pt-2 pb-1 px-4 flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-widest">
-        <i class="fas fa-bolt text-[10px]"></i>
-        <span>Actions</span>
-      </div>
-      <a href="{% url 'teacher_change_request' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_change_request' %}active{% endif %}">
-        <i class="fas fa-exchange-alt"></i>
-        <span>Request Change</span>
-      </a>
+      <a href="{% url 'teacher_dashboard' %}" class="sidebar-link"><i class="fas fa-chalkboard w-5"></i> Dashboard</a>
+      <a href="{% url 'teacher_scanner' %}" class="sidebar-link"><i class="fas fa-camera w-5"></i> Live Scanner</a>
+      <div class="pt-3 pb-1 px-4 text-slate-500 text-xs font-semibold uppercase">My Classes</div>
+      <a href="{% url 'teacher_students' %}" class="sidebar-link"><i class="fas fa-user-graduate w-5"></i> My Students</a>
+      <a href="{% url 'teacher_timetable' %}" class="sidebar-link"><i class="fas fa-calendar-week w-5"></i> My Timetable</a>
+      <a href="{% url 'teacher_reports' %}" class="sidebar-link"><i class="fas fa-chart-simple w-5"></i> Reports</a>
+      <div class="pt-3 pb-1 px-4 text-slate-500 text-xs font-semibold uppercase">Actions</div>
+      <a href="{% url 'teacher_change_request' %}" class="sidebar-link"><i class="fas fa-exchange-alt w-5"></i> Request Change</a>
 
       {% elif is_student %}
-      <!-- ══ STUDENT NAV ══ -->
-      <a href="{% url 'student_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
-        <i class="fas fa-id-card"></i>
-        <span>My Dashboard</span>
-      </a>
-      <a href="{% url 'student_attendance' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_attendance' %}active{% endif %}">
-        <i class="fas fa-calendar-check"></i>
-        <span>Attendance History</span>
-      </a>
-      <a href="{% url 'student_report_download' %}" class="sidebar-link">
-        <i class="fas fa-download"></i>
-        <span>Download Report</span>
-      </a>
+      <a href="{% url 'student_dashboard' %}" class="sidebar-link"><i class="fas fa-id-card w-5"></i> My Dashboard</a>
+      <a href="{% url 'student_attendance' %}" class="sidebar-link"><i class="fas fa-calendar-check w-5"></i> Attendance History</a>
+      <a href="{% url 'student_report_download' %}" class="sidebar-link"><i class="fas fa-download w-5"></i> Download Report</a>
       {% endif %}
-
     </nav>
 
-    <!-- User info + actions with FontAwesome icons -->
-    <div class="px-4 py-4 border-t border-primary-light space-y-3">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full {% if is_admin %}bg-accent{% elif is_teacher %}bg-yellow-500{% else %}bg-green-500{% endif %} flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-          {% if is_admin %}<i class="fas fa-shield-alt text-primary text-sm"></i>{% elif is_teacher %}<i class="fas fa-chalkboard-user text-primary text-sm"></i>{% else %}<i class="fas fa-user text-primary text-sm"></i>{% endif %}
+    <div class="px-4 py-4 border-t border-primary-light">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+          <i class="fas fa-user text-primary"></i>
         </div>
-        <div class="min-w-0">
-          <p class="text-white text-sm font-medium truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
-          <p class="text-slate-400 text-xs">
-            {% if is_admin %}<i class="fas fa-crown text-[10px] mr-1"></i>Administrator
-            {% elif is_teacher %}<i class="fas fa-chalkboard text-[10px] mr-1"></i>Teacher
-            {% else %}<i class="fas fa-graduation-cap text-[10px] mr-1"></i>Student{% endif %}
-          </p>
+        <div>
+          <p class="text-white text-sm">{{ request.user.get_full_name|default:request.user.username }}</p>
+          <p class="text-slate-400 text-xs">{% if is_admin %}Admin{% elif is_teacher %}Teacher{% else %}Student{% endif %}</p>
         </div>
       </div>
-      <a href="{% url 'password_change' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-xs transition-colors">
-        <i class="fas fa-key text-xs"></i>
-        <span>Change Password</span>
+      <a href="{% url 'password_change' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-2">
+        <i class="fas fa-key"></i> Change Password
       </a>
-      <a href="{% url 'logout' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
-        <i class="fas fa-sign-out-alt"></i>
-        <span>Sign out</span>
+      <a href="{% url 'logout' %}" class="flex items-center gap-2 text-slate-400 hover:text-white text-sm">
+        <i class="fas fa-sign-out-alt"></i> Sign out
       </a>
     </div>
   </aside>
 
   <!-- Main content -->
-  <main class="ml-64 flex-1 flex flex-col min-h-screen">
-    <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
-      <div>
-        <h2 class="font-semibold text-slate-800 text-lg">{% block page_title %}Dashboard{% endblock %}</h2>
-        <p class="text-slate-500 text-xs">{% block page_subtitle %}{% endblock %}</p>
-      </div>
-      <div class="flex items-center gap-3">
-        {% block header_actions %}{% endblock %}
-        <div class="text-slate-500 hover:text-primary transition-colors cursor-pointer">
-          <i class="far fa-bell"></i>
+  <main class="lg:ml-64 min-h-screen">
+    <header class="bg-white border-b px-4 md:px-8 py-4 sticky top-0 z-30">
+      <div class="flex items-center justify-between">
+        <div class="pl-12 lg:pl-0">
+          <h2 class="font-semibold text-slate-800 text-lg">{% block page_title %}Dashboard{% endblock %}</h2>
+          <p class="text-slate-500 text-xs">{% block page_subtitle %}{% endblock %}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          {% block header_actions %}{% endblock %}
         </div>
       </div>
     </header>
-    <div class="flex-1 p-8">
+    <div class="p-4 md:p-8">
       {% block content %}{% endblock %}
     </div>
   </main>
 
-  {% block extra_js %}{% endblock %}
-  <!-- small script to keep active icon colors consistent on hover (fontawesome handled via CSS) -->
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // ensure any active link icons have proper color (handled by CSS already)
-      // additional helper: if any dynamic classes appear,
-      const activeLinks = document.querySelectorAll('.sidebar-link.active i');
-      activeLinks.forEach(icon => {
-        icon.style.color = '#1e3a5f';
-      });
+    const sidebar = document.getElementById('sidebar');
+    const menuBtn = document.getElementById('menuBtn');
+    const closeBtn = document.getElementById('closeBtn');
+
+    if (menuBtn) {
+      menuBtn.onclick = function () {
+        sidebar.classList.remove('-translate-x-full');
+      }
+    }
+
+    if (closeBtn) {
+      closeBtn.onclick = function () {
+        sidebar.classList.add('-translate-x-full');
+      }
+    }
+
+    // Click outside to close on mobile
+    document.addEventListener('click', function (e) {
+      if (window.innerWidth < 1024) {
+        if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
+          sidebar.classList.add('-translate-x-full');
+        }
+      }
     });
   </script>
+
+  {% block extra_js %}{% endblock %}
 </body>
 
 </html>

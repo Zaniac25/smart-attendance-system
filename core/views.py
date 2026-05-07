@@ -43,6 +43,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User, Group
+from django.db.models import Q
 
 from .models import *
 from .serializers import StudentSerializer, MarkAttendanceSerializer
@@ -89,52 +90,61 @@ def _get_filter_options():
 
 
 def _apply_filters(qs, request):
-    from django.db.models import Q
-    from .models import COURSE_DURATION
-    from .analytics import get_active_session
- 
-    course  = request.GET.get('course',  '').strip()
-    branch  = request.GET.get('branch',  '').strip()
+
+
+
+
+    course  = request.GET.get('course', '').strip()
+    branch  = request.GET.get('branch', '').strip()
     section = request.GET.get('section', '').strip()
-    batch   = request.GET.get('batch',   '').strip()
-    year    = request.GET.get('year',    '').strip()
-    search  = request.GET.get('q',       '').strip()
- 
-    if course:  qs = qs.filter(course__iexact=course)
-    if branch:  qs = qs.filter(branch__iexact=branch)
-    if section: qs = qs.filter(section__iexact=section)
- 
+    batch = request.GET.get('batch', '').strip()
+    year = request.GET.get('year', '').strip()
+    search  = request.GET.get('q', '').strip()
+
+    if course:  
+        qs = qs.filter(course__iexact=course)
+    if branch:  
+        qs = qs.filter(branch__iexact=branch)
+    if section: 
+        qs = qs.filter(section__iexact=section)
+
     if batch:
         try:
             admission_year = int(batch.split('-')[0])
             qs = qs.filter(admission_year=admission_year)
         except (ValueError, IndexError):
             pass
- 
+
     if year and course:
         year_map = {'1st Year': 1, '2nd Year': 2, '3rd Year': 3, '4th Year': 4}
         year_num = year_map.get(year)
+        
         if year_num:
             session = get_active_session(course)
+            
             if session:
-                session_start = session.start_date.year
+                session_start_year = session.start_date.year
             else:
-                from django.utils import timezone
                 today = timezone.localdate()
-                session_start = today.year if today.month >= 7 else today.year - 1
-            admission_year = session_start - year_num + 1
+                session_start_year = today.year if today.month >= 7 else today.year - 1
+            
+            admission_year = session_start_year - year_num + 1
             qs = qs.filter(admission_year=admission_year)
- 
+
     if search:
         qs = qs.filter(
             Q(name__icontains=search) |
             Q(student_id__icontains=search) |
             Q(roll_number__icontains=search)
         )
- 
+
     return qs, {
-        'course': course, 'branch': branch, 'section': section,
-        'batch': batch, 'year': year, 'search': search,
+        'course': course, 
+        'branch': branch, 
+        'section': section,
+        'batch': batch, 
+        'year': year, 
+        'search': search,
     }
 
 
@@ -570,7 +580,6 @@ class StudentsView(View):
 @method_decorator(login_required, name='dispatch')
 class StudentAddView(View):
     def get(self, request):
-        from .models import AcademicSession
         return render(request, 'dashboard/student_form.html', {
             'action': 'Add',
             'all_sessions': AcademicSession.objects.all().order_by('-start_date'),
@@ -578,15 +587,14 @@ class StudentAddView(View):
         })
  
     def post(self, request):
-        from .models import AcademicSession, parse_roll_number
-        sid            = request.POST.get('student_id',    '').strip()
-        name           = request.POST.get('name',          '').strip()
-        course         = request.POST.get('course',        '').strip()
-        branch         = request.POST.get('branch',        '').strip()
-        section        = request.POST.get('section',       '').strip()
-        email          = request.POST.get('email',         '').strip()
-        roll_number    = request.POST.get('roll_number',   '').strip()
-        session_id     = request.POST.get('session_id',    '').strip() or None
+        sid = request.POST.get('student_id', '').strip()
+        name = request.POST.get('name', '').strip()
+        course = request.POST.get('course', '').strip()
+        branch = request.POST.get('branch', '').strip()
+        section = request.POST.get('section', '').strip()
+        email = request.POST.get('email', '').strip()
+        roll_number = request.POST.get('roll_number', '').strip()
+        session_id = request.POST.get('session_id', '').strip() or None
  
         # Parse admission year
         admission_year = None
@@ -627,10 +635,11 @@ class StudentAddView(View):
             student_id=sid, name=name, course=course, branch=branch,
             section=section, email=email or None, roll_number=roll_number,
             admission_year=admission_year, session=session,
+            qr_generated=True,  
         )
         student.save()
         return redirect('students')
-
+    
 
 @method_decorator(login_required, name='dispatch')
 class StudentEditView(View):
@@ -788,15 +797,16 @@ class StudentImportView(View):
         })
 
 
-
-
 @method_decorator(login_required, name='dispatch')
 class QRGenerateView(View):
     def get(self, request):
-        qs = Student.objects.all()
-        qs, active_filters = _apply_filters(qs, request)
-        students = qs.order_by('course', 'branch', 'section', 'name')
-
+        # Get ALL students - DO NOT apply filters for QR page
+        # Filters should only apply to students list, not QR codes
+        students = Student.objects.all().order_by('course', 'branch', 'section', 'name')
+        
+        # Debug: print to console
+        print(f"QR Generate View - Total students: {students.count()}")
+        
         faces_dir = os.path.join(settings.BASE_DIR, 'media', 'student_faces')
         face_photos = {}
         for student in students:
@@ -804,24 +814,33 @@ class QRGenerateView(View):
             if os.path.exists(face_path):
                 face_photos[student.student_id] = f'/media/student_faces/{student.student_id}.jpg'
 
+        # Still pass filter options for the filter bar (optional)
         return render(request, 'dashboard/qr_generate.html', {
             'students': students,
             'face_photos': face_photos,
             'now': timezone.now(),
-            **active_filters,
+            # Pass empty filters so filter bar shows but doesn't filter
+            'course': '', 'branch': '', 'section': '', 'batch': '', 'year': '', 'search': '',
             **_get_filter_options(),
         })
 
     def post(self, request):
         generate_all = request.POST.get('generate_all') == '1'
         selected_ids = request.POST.getlist('student_ids')
-        qs = Student.objects.all() if generate_all else Student.objects.filter(student_id__in=selected_ids)
+        
+        if generate_all:
+            qs = Student.objects.all()
+        else:
+            qs = Student.objects.filter(student_id__in=selected_ids)
+            
         count = 0
         for student in qs:
             student.qr_generated = True
             student.save(update_fields=['qr_generated'])
             count += 1
+            
         return JsonResponse({'success': True, 'count': count})
+    
 
 
 @method_decorator(login_required, name='dispatch')
@@ -1015,11 +1034,23 @@ class IDCardDownloadAllView(View):
         return response
 
 
-
 @method_decorator(login_required, name='dispatch')
 class SettingsView(View):
     def get(self, request):
-        return render(request, 'dashboard/settings.html', {'config': AttendanceSettings.get()})
+        
+        
+        context = {
+            'config': AttendanceSettings.get(),
+            'total_students': Student.objects.count(),
+            'total_teachers': TeacherProfile.objects.count(),
+            'active_sessions': AcademicSession.objects.filter(is_active=True).count(),
+            'holiday_count': Holiday.objects.filter(date__year=datetime.now().year).count(),
+            'smtp_configured': bool(
+                settings.EMAIL_HOST_USER and 
+                settings.EMAIL_HOST_PASSWORD
+            ),
+        }
+        return render(request, 'dashboard/settings.html', context)
 
     def post(self, request):
         config = AttendanceSettings.get()
@@ -1043,7 +1074,7 @@ class SettingsView(View):
 
         if start: config.attendance_start_time = start
         if end:   config.attendance_end_time   = end
-        if late:  config.late_cutoff_time       = late
+        if late:  config.late_cutoff_time      = late
 
         # Validate: start < late < end
         warnings = []
@@ -1060,11 +1091,21 @@ class SettingsView(View):
         if warnings:
             msg += ' ⚠ ' + ' '.join(warnings)
 
-        return render(request, 'dashboard/settings.html', {
+        
+        
+        context = {
             'config': config,
             'success': msg,
-        })
-
+            'total_students': Student.objects.count(),
+            'total_teachers': TeacherProfile.objects.count(),
+            'active_sessions': AcademicSession.objects.filter(is_active=True).count(),
+            'holiday_count': Holiday.objects.filter(date__year=datetime.now().year).count(),
+            'smtp_configured': bool(
+                settings.EMAIL_HOST_USER and 
+                settings.EMAIL_HOST_PASSWORD
+            ),
+        }
+        return render(request, 'dashboard/settings.html', context)
 
 
 

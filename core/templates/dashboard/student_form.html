@@ -61,7 +61,7 @@
         </label>
         <input type="text" name="name"
                value="{{ data.name|default:'' }}"
-               placeholder="e.g. M Tarini"
+               placeholder="e.g. John doe"
                class="w-full border {% if errors.name %}border-red-400{% else %}border-slate-300{% endif %}
                       rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         {% if errors.name %}

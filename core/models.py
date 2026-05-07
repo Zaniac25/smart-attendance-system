@@ -15,7 +15,7 @@ from django.utils import timezone
 from datetime import time, date, timedelta
 from django.contrib.auth.models import User
 import re
-
+from django.db.models import Q
 
  
 #  COURSE METADATA
@@ -124,10 +124,9 @@ def compute_student_year(admission_year, course):
  
 #  ACADEMIC SESSION
  
-
 class AcademicSession(models.Model):
-    course     = models.CharField(max_length=50, help_text="e.g. Btech, BCA, BCS")
-    name       = models.CharField(max_length=100, help_text="e.g. 2024-25")
+    course = models.CharField(max_length=50, help_text="e.g. Btech, BCA, BCS")
+    name = models.CharField(max_length=100, help_text="e.g. 2024-25")
     start_date = models.DateField()
     end_date   = models.DateField()
     is_active  = models.BooleanField(
@@ -157,7 +156,6 @@ class AcademicSession(models.Model):
 
     def get_holiday_dates(self):
         """Set of date objects for all holidays in this session (incl. globals)."""
-        from django.db.models import Q
         return set(
             Holiday.objects.filter(
                 Q(session=self) | Q(session__isnull=True),
@@ -166,7 +164,6 @@ class AcademicSession(models.Model):
         )
 
     def get_holidays(self):
-        from django.db.models import Q
         return Holiday.objects.filter(
             Q(session=self) | Q(session__isnull=True),
             date__range=(self.start_date, self.end_date)
@@ -183,7 +180,7 @@ class AcademicSession(models.Model):
         return check_date not in self.get_holiday_dates()
 
     def get_working_days(self, up_to_date=None):
-        end     = min(up_to_date or date.today(), self.end_date)
+        end = min(up_to_date or date.today(), self.end_date)
         start   = self.start_date
         if end < start:
             return 0
@@ -197,7 +194,6 @@ class AcademicSession(models.Model):
         return count
 
     def get_holiday_name(self, check_date):
-        from django.db.models import Q
         h = Holiday.objects.filter(
             Q(session=self) | Q(session__isnull=True),
             date=check_date
@@ -217,10 +213,9 @@ class AcademicSession(models.Model):
  
 #  HOLIDAY
  
-
 class Holiday(models.Model):
-    date    = models.DateField(db_index=True)
-    name    = models.CharField(max_length=100)
+    date = models.DateField(db_index=True)
+    name = models.CharField(max_length=100)
     session = models.ForeignKey(
         AcademicSession,
         on_delete=models.CASCADE,
@@ -241,17 +236,15 @@ class Holiday(models.Model):
 
 
  
-#  STUDENT
- 
 
 class Student(models.Model):
-    student_id    = models.CharField(max_length=20, unique=True, db_index=True)
-    name          = models.CharField(max_length=100)
-    course        = models.CharField(max_length=50,  blank=True, default='')
-    branch        = models.CharField(max_length=50,  blank=True, default='')
-    section       = models.CharField(max_length=20,  blank=True, default='')
+    student_id = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=100)
+    course = models.CharField(max_length=50,  blank=True, default='')
+    branch = models.CharField(max_length=50,  blank=True, default='')
+    section = models.CharField(max_length=20,  blank=True, default='')
     student_class = models.CharField(max_length=100)
-    email         = models.EmailField(blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
     face_enrolled = models.BooleanField(default=False)
     qr_generated  = models.BooleanField(default=False)
 
@@ -306,9 +299,11 @@ class Student(models.Model):
             if session:
                 self.session = session
 
+        if not self.pk:  # Only for new students (not existing ones)
+            self.qr_generated = True
+
         super().save(*args, **kwargs)
 
-    # Computed properties 
 
     @property
     def batch(self):
@@ -347,9 +342,9 @@ class Attendance(models.Model):
     student   = models.ForeignKey(
         Student, on_delete=models.CASCADE, related_name='attendance_records'
     )
-    date      = models.DateField(db_index=True)
-    time      = models.TimeField()
-    is_late   = models.BooleanField(default=False)
+    date = models.DateField(db_index=True)
+    time = models.TimeField()
+    is_late = models.BooleanField(default=False)
     is_manual = models.BooleanField(default=False)
     marked_at = models.DateTimeField(auto_now_add=True)
 
@@ -393,7 +388,7 @@ class AttendanceSettings(models.Model):
         blank=True, help_text="Send daily absent report to this email"
     )
     notify_on_absent = models.BooleanField(default=True)
-    updated_at       = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = 'System Settings'
@@ -417,7 +412,7 @@ class AttendanceSettings(models.Model):
  
 
 class TeacherProfile(models.Model):
-    user             = models.OneToOneField(
+    user = models.OneToOneField(
         'auth.User', on_delete=models.CASCADE, related_name='teacher_profile'
     )
     assigned_classes = models.JSONField(default=list)
@@ -471,15 +466,15 @@ class ChangeRequest(models.Model):
     requested_by  = models.ForeignKey(
         'auth.User', on_delete=models.CASCADE, related_name='change_requests'
     )
-    student_id    = models.CharField(max_length=20, db_index=True)
+    student_id = models.CharField(max_length=20, db_index=True)
     request_type  = models.CharField(max_length=20, choices=TYPE_CHOICES)
     description   = models.TextField(help_text='Describe exactly what needs to change')
     date_affected = models.DateField(null=True, blank=True, help_text='Relevant date if attendance change')
-    status        = models.CharField(
+    status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, default='pending', db_index=True
     )
-    admin_note    = models.TextField(blank=True, help_text='Admin response / reason')
-    created_at    = models.DateTimeField(auto_now_add=True)
+    admin_note = models.TextField(blank=True, help_text='Admin response / reason')
+    created_at = models.DateTimeField(auto_now_add=True)
     resolved_at   = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -500,10 +495,10 @@ class ChangeRequest(models.Model):
  
 
 class Timetable(models.Model):
-    teacher   = models.OneToOneField(
+    teacher = models.OneToOneField(
         TeacherProfile, on_delete=models.CASCADE, related_name='timetable'
     )
-    session   = models.ForeignKey(
+    session = models.ForeignKey(
         AcademicSession, on_delete=models.SET_NULL, null=True, blank=True,
         help_text="Which session this timetable applies to"
     )
@@ -515,7 +510,7 @@ class Timetable(models.Model):
         null=True, blank=True,
         help_text="Structured timetable data from the grid form"
     )
-    notes     = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -7,30 +7,22 @@
 {% block header_actions %}
   <a href="{% url 'export_excel' %}?date={{ date_str }}"
      class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-    </svg>
+    <i class="fas fa-file-excel text-sm"></i>
     Export Excel
   </a>
 
-  <!-- Send email button -->
-  <button id="sendEmailBtn"
-    onclick="sendNotification()"
-    class="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-    </svg>
-    Send Absent Email
-  </button>
+  <a href="{% url 'attendance_alert' %}"
+     class="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-bell text-sm"></i>
+    View Attendance Alerts
+  </a>
 {% endblock %}
 
 {% block content %}
 
 <!-- Date Filter -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-4 mb-4 flex items-center gap-4">
-  <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-  </svg>
+  <i class="fas fa-calendar-alt text-slate-400"></i>
   <form method="GET" class="flex items-center gap-3">
     {% if course %}<input type="hidden" name="course" value="{{ course }}"/>{% endif %}
     {% if branch %}<input type="hidden" name="branch" value="{{ branch }}"/>{% endif %}
@@ -40,12 +32,13 @@
            class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
     <button type="submit"
             class="bg-primary text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-900 transition-colors">
-      View
+      <i class="fas fa-eye mr-1"></i> View
     </button>
     <a href="?date={% now 'Y-m-d' %}"
-       class="text-blue-600 hover:text-blue-800 text-sm font-medium">Today</a>
+       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+      <i class="fas fa-calendar-day mr-1"></i> Today
+    </a>
   </form>
-  <div id="emailStatus" class="ml-auto text-sm"></div>
 </div>
 
 {% include "dashboard/filter_bar.html" %}
@@ -53,19 +46,23 @@
 <!-- Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
   <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 text-center">
+    <i class="fas fa-users text-slate-400 text-xl mb-2 block"></i>
     <p class="text-xs text-slate-500 uppercase tracking-wide font-medium">Total</p>
     <p class="text-3xl font-bold text-slate-800 mt-1">{{ report.total_students }}</p>
   </div>
   <div class="bg-white rounded-xl border border-green-100 shadow-sm p-4 text-center">
+    <i class="fas fa-check-circle text-green-500 text-xl mb-2 block"></i>
     <p class="text-xs text-green-600 uppercase tracking-wide font-medium">Present</p>
     <p class="text-3xl font-bold text-green-600 mt-1">{{ report.present }}</p>
     <p class="text-xs text-slate-400">{{ report.attendance_percentage }}%</p>
   </div>
   <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 text-center">
+    <i class="fas fa-times-circle text-red-500 text-xl mb-2 block"></i>
     <p class="text-xs text-red-500 uppercase tracking-wide font-medium">Absent</p>
     <p class="text-3xl font-bold text-red-500 mt-1">{{ report.absent }}</p>
   </div>
   <div class="bg-white rounded-xl border border-yellow-100 shadow-sm p-4 text-center">
+    <i class="fas fa-clock text-yellow-500 text-xl mb-2 block"></i>
     <p class="text-xs text-yellow-600 uppercase tracking-wide font-medium">Late</p>
     <p class="text-3xl font-bold text-yellow-500 mt-1">{{ report.late }}</p>
   </div>
@@ -73,7 +70,9 @@
 
 <!-- 14-day Trend -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6 mb-6">
-  <h3 class="font-semibold text-slate-800 mb-4">14-Day Attendance Trend</h3>
+  <h3 class="font-semibold text-slate-800 mb-4">
+    <i class="fas fa-chart-line mr-2 text-primary"></i> 14-Day Attendance Trend
+  </h3>
   <canvas id="trendChart" height="70"></canvas>
 </div>
 
@@ -83,7 +82,7 @@
   <!-- Present Students -->
   <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
     <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-      <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+      <i class="fas fa-check-circle text-green-500"></i>
       Present Students ({{ report.present }})
     </h3>
     {% if report.present_students %}
@@ -91,12 +90,12 @@
       <table class="w-full text-sm">
         <thead class="text-slate-500 text-xs uppercase tracking-wide">
           <tr class="border-b border-slate-100">
-            <th class="text-left pb-2 pr-3">ID</th>
-            <th class="text-left pb-2 pr-3">Name</th>
-            <th class="text-left pb-2 pr-3">Class</th>
-            <th class="text-left pb-2">Time</th>
-            <th class="text-left pb-2">Source</th>
-            <th class="text-left pb-2">Actions</th>
+            <th class="text-left pb-2 pr-3"><i class="fas fa-qrcode mr-1"></i> ID</th>
+            <th class="text-left pb-2 pr-3"><i class="fas fa-user mr-1"></i> Name</th>
+            <th class="text-left pb-2 pr-3"><i class="fas fa-graduation-cap mr-1"></i> Class</th>
+            <th class="text-left pb-2"><i class="fas fa-clock mr-1"></i> Time</th>
+            <th class="text-left pb-2"><i class="fas fa-code-branch mr-1"></i> Source</th>
+            <th class="text-left pb-2"><i class="fas fa-cog mr-1"></i> Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -112,33 +111,44 @@
             <td class="py-2 pr-3">
               <span id="time-display-{{ r.id }}"
                     class="{% if r.is_late %}text-yellow-600 font-medium{% else %}text-slate-600{% endif %}">
-                {{ r.time|time:"g:i A" }}{% if r.is_late %} ⚠{% endif %}
+                {{ r.time|time:"g:i A" }}{% if r.is_late %} {% endif %}
               </span>
             </td>
             <td class="py-2 pr-3">
               {% if r.is_manual %}
-                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Manual</span>
+                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                   Manual
+                </span>
               {% else %}
-                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Scanner</span>
+                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                  <i class="fas fa-qrcode mr-1"></i> Scanner
+                </span>
               {% endif %}
             </td>
             <td class="py-2">
               <div class="flex items-center gap-2">
-                <!-- Edit time inline -->
-                <div class="flex items-center gap-1" id="edit-form-{{ r.id }}" style="display:none!important">
+                <div class="flex items-center gap-1" id="edit-form-{{ r.id }}" style="display:none">
                   <input type="time" id="edit-time-{{ r.id }}"
                          value="{{ r.time|time:'H:i' }}"
                          class="border border-slate-300 rounded px-2 py-0.5 text-xs w-24"/>
                   <button onclick="saveEdit('{{ r.id }}')"
-                          class="text-green-600 hover:text-green-800 text-xs font-semibold">Save</button>
+                          class="text-green-600 hover:text-green-800 text-xs font-semibold">
+                    <i class="fas fa-save"></i> Save
+                  </button>
                   <button onclick="cancelEdit('{{ r.id }}')"
-                          class="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                          class="text-slate-400 hover:text-slate-600 text-xs">
+                    <i class="fas fa-times"></i>
+                  </button>
                 </div>
                 <button onclick="startEdit('{{ r.id }}')"
                         id="edit-btn-{{ r.id }}"
-                        class="text-amber-500 hover:text-amber-700 text-xs font-medium">Edit</button>
+                        class="text-amber-500 hover:text-amber-700 text-xs font-medium">
+                  <i class="fas fa-edit"></i> Edit
+                </button>
                 <button onclick="deleteAttendance('{{ r.id }}', '{{ r.student.student_id }}')"
-                        class="text-red-400 hover:text-red-600 text-xs font-medium">Delete</button>
+                        class="text-red-400 hover:text-red-600 text-xs font-medium">
+                  <i class="fas fa-trash-alt"></i> Delete
+                </button>
               </div>
             </td>
           </tr>
@@ -147,14 +157,16 @@
       </table>
     </div>
     {% else %}
-    <p class="text-slate-400 text-sm text-center py-8">No attendance records for this date.</p>
+    <p class="text-slate-400 text-sm text-center py-8">
+      <i class="fas fa-info-circle mr-1"></i> No attendance records for this date.
+    </p>
     {% endif %}
   </div>
 
   <!-- Absent Students -->
   <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
     <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-      <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+      <i class="fas fa-times-circle text-red-500"></i>
       Absent Students ({{ report.absent }})
     </h3>
     {% if report.absent_students %}
@@ -162,9 +174,9 @@
       <table class="w-full text-sm">
         <thead class="text-slate-500 text-xs uppercase tracking-wide">
           <tr class="border-b border-slate-100">
-            <th class="text-left pb-2 pr-3">ID</th>
-            <th class="text-left pb-2 pr-3">Name</th>
-            <th class="text-left pb-2">Class</th>
+            <th class="text-left pb-2 pr-3"><i class="fas fa-qrcode mr-1"></i> ID</th>
+            <th class="text-left pb-2 pr-3"><i class="fas fa-user mr-1"></i> Name</th>
+            <th class="text-left pb-2"><i class="fas fa-graduation-cap mr-1"></i> Class</th>
           </tr>
         </thead>
         <tbody>
@@ -183,49 +195,55 @@
       </table>
     </div>
     {% else %}
-    <p class="text-green-600 text-sm text-center py-8 font-medium">🎉 Full attendance today!</p>
+    <p class="text-green-600 text-sm text-center py-8 font-medium">
+      <i class="fas fa-trophy mr-1"></i>  Full attendance today!
+    </p>
     {% endif %}
   </div>
 </div>
 
 <!-- Class-wise -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-  <h3 class="font-semibold text-slate-800 mb-4">Class-wise Breakdown</h3>
+  <h3 class="font-semibold text-slate-800 mb-4">
+    <i class="fas fa-chalkboard mr-2 text-primary"></i> Class-wise Breakdown
+  </h3>
   {% if class_report %}
-  <table class="w-full text-sm">
-    <thead class="text-slate-500 text-xs uppercase tracking-wide border-b border-slate-100">
-      <tr>
-        <th class="text-left pb-3 pr-4">Class</th>
-        <th class="text-center pb-3 px-4">Total</th>
-        <th class="text-center pb-3 px-4">Present</th>
-        <th class="text-center pb-3 px-4">Absent</th>
-        <th class="text-center pb-3 px-4">Late</th>
-        <th class="text-left pb-3 pl-4">Attendance Rate</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in class_report %}
-      <tr class="border-b border-slate-50 hover:bg-slate-50">
-        <td class="py-3 pr-4 font-semibold text-slate-800">{{ row.class }}</td>
-        <td class="py-3 px-4 text-center text-slate-600">{{ row.total }}</td>
-        <td class="py-3 px-4 text-center text-green-600 font-medium">{{ row.present }}</td>
-        <td class="py-3 px-4 text-center text-red-500 font-medium">{{ row.absent }}</td>
-        <td class="py-3 px-4 text-center text-yellow-600 font-medium">{{ row.late }}</td>
-        <td class="py-3 pl-4">
-          <div class="flex items-center gap-2">
-            <div class="flex-1 bg-slate-100 rounded-full h-2 w-32">
-              <div class="h-2 rounded-full {% if row.percentage >= 75 %}bg-green-500{% elif row.percentage >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
-                   style="width: '{{ row.percentage }}%'"></div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="text-slate-500 text-xs uppercase tracking-wide border-b border-slate-100">
+        <tr>
+          <th class="text-left pb-3 pr-4"><i class="fas fa-graduation-cap mr-1"></i> Class</th>
+          <th class="text-center pb-3 px-4"><i class="fas fa-users mr-1"></i> Total</th>
+          <th class="text-center pb-3 px-4"><i class="fas fa-check-circle mr-1"></i> Present</th>
+          <th class="text-center pb-3 px-4"><i class="fas fa-times-circle mr-1"></i> Absent</th>
+          <th class="text-center pb-3 px-4"><i class="fas fa-clock mr-1"></i> Late</th>
+          <th class="text-left pb-3 pl-4"><i class="fas fa-chart-line mr-1"></i> Attendance Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in class_report %}
+        <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="py-3 pr-4 font-semibold text-slate-800">{{ row.class }}</td>
+          <td class="py-3 px-4 text-center text-slate-600">{{ row.total }}</td>
+          <td class="py-3 px-4 text-center text-green-600 font-medium">{{ row.present }}</td>
+          <td class="py-3 px-4 text-center text-red-500 font-medium">{{ row.absent }}</td>
+          <td class="py-3 px-4 text-center text-yellow-600 font-medium">{{ row.late }}</td>
+          <td class="py-3 pl-4">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-slate-100 rounded-full h-2 w-32">
+                <div class="h-2 rounded-full {% if row.percentage >= 75 %}bg-green-500{% elif row.percentage >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
+                     {style="width: {{ row.percentage }}%"}></div>
+              </div>
+              <span class="text-xs font-bold {% if row.percentage >= 75 %}text-green-600{% elif row.percentage >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
+                {{ row.percentage }}%
+              </span>
             </div>
-            <span class="text-xs font-bold {% if row.percentage >= 75 %}text-green-600{% elif row.percentage >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
-              {{ row.percentage }}%
-            </span>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
 </div>
 
@@ -255,28 +273,7 @@
     },
   });
 
-  function sendNotification() {
-    const btn = document.getElementById('sendEmailBtn');
-    const status = document.getElementById('emailStatus');
-    btn.disabled = true;
-    btn.textContent = 'Sending...';
 
-    fetch('{% url "send_notification" %}', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'date={{ date_str }}',
-    })
-    .then(r => r.json())
-    .then(data => {
-      status.innerHTML = data.success
-        ? '<span class="text-green-600 font-medium">✓ Email sent!</span>'
-        : '<span class="text-red-500">Failed — check email settings.</span>';
-    })
-    .catch(() => { status.innerHTML = '<span class="text-red-500">Network error.</span>'; })
-    .finally(() => { btn.disabled = false; btn.textContent = 'Send Absent Email'; });
-  }
-
-  // ── Inline edit ──────────────────────────────────────────────────────────────
   function startEdit(id) {
     document.getElementById(`edit-btn-${id}`).style.display = 'none';
     document.getElementById(`edit-form-${id}`).style.display = 'flex';
@@ -284,7 +281,7 @@
 
   function cancelEdit(id) {
     document.getElementById(`edit-btn-${id}`).style.display = '';
-    document.getElementById(`edit-form-${id}`).style.display = 'none!important';
+    document.getElementById(`edit-form-${id}`).style.display = 'none';
   }
 
   async function saveEdit(id) {
@@ -297,7 +294,7 @@
     const data = await resp.json();
     if(data.success) {
       const span = document.getElementById(`time-display-${id}`);
-      span.textContent = data.time + (data.is_late ? ' ⚠' : '');
+      span.innerHTML = data.time + (data.is_late ? ' <i class="fas fa-exclamation-triangle text-yellow-500"></i>' : '');
       span.className   = data.is_late ? 'text-yellow-600 font-medium' : 'text-slate-600';
       cancelEdit(id);
     } else {
@@ -305,7 +302,6 @@
     }
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────────
   async function deleteAttendance(id, sid) {
     if(!confirm('Delete this attendance record?')) return;
     const fd = new FormData();
