@@ -6,15 +6,39 @@
 
 {% block content %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+{% if not today_is_working %}
+<div class="bg-amber-50 border border-amber-300 rounded-xl px-6 py-5 mb-6 flex items-start gap-4">
+  <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+    {% if today_is_sunday %}
+    <i class="fas fa-sun text-amber-600 text-2xl"></i>
+    {% else %}
+    <i class="fas fa-gift text-amber-600 text-2xl"></i>
+    {% endif %}
+  </div>
+  <div>
+    <p class="font-bold text-amber-800 text-base">
+      {% if today_is_sunday %}
+      Today is Sunday — No Attendance
+      {% else %}
+      Holiday: {{ holiday_name }} — No Attendance
+      {% endif %}
+    </p>
+    <p class="text-amber-700 text-sm mt-1">
+      The scanner is disabled today. Attendance cannot be marked on
+      {% if today_is_sunday %}Sundays.{% else %}holidays.{% endif %}
+      Use <a href="{% url 'manual_attendance' %}" class="underline font-semibold">Manual Attendance</a>
+      if you need to override for a specific student.
+    </p>
+  </div>
+</div>
+{% endif %}
 
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
   <div class="lg:col-span-2 space-y-4">
 
-    <!-- Phase indicator -->
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
-      <div id="phase1Indicator"
-           class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300">
+      <div id="phase1Indicator" class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300">
         <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
           <span class="text-white font-bold text-sm">1</span>
         </div>
@@ -22,22 +46,13 @@
           <p class="font-semibold text-blue-800 text-sm">Scan QR Code</p>
           <p class="text-blue-600 text-xs truncate">Hold QR card to camera</p>
         </div>
-        <svg id="phase1Check" class="w-5 h-5 text-green-500 ml-auto flex-shrink-0 hidden"
-             fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"/>
-        </svg>
+        <i id="phase1Check" class="fas fa-check-circle text-green-500 text-xl ml-auto flex-shrink-0 hidden"></i>
       </div>
 
-      <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
+      <i class="fas fa-chevron-right text-slate-300 flex-shrink-0"></i>
 
-      <div id="phase2Indicator"
-           class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300">
-        <div id="phase2Circle"
-             class="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0">
+      <div id="phase2Indicator" class="flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300">
+        <div id="phase2Circle" class="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0">
           <span class="text-white font-bold text-sm">2</span>
         </div>
         <div class="min-w-0">
@@ -47,26 +62,40 @@
       </div>
     </div>
 
-    <!-- Instruction banner -->
-    <div id="instructionBanner"
-         class="rounded-xl px-5 py-3 flex items-center gap-3 bg-slate-100 border border-slate-200 transition-all duration-300">
+    <div id="instructionBanner" class="rounded-xl px-5 py-3 flex items-center gap-3 bg-slate-100 border border-slate-200 transition-all duration-300">
       <div id="bannerDot" class="w-3 h-3 rounded-full bg-slate-400 flex-shrink-0"></div>
       <span id="bannerText" class="font-medium text-slate-600 text-sm">
+        {% if today_is_working %}
         Click Start Scanner to begin
+        {% elif today_is_sunday %}
+        Scanner disabled — today is Sunday
+        {% else %}
+        Scanner disabled — {{ holiday_name }}
+        {% endif %}
       </span>
     </div>
 
-    <!-- Camera feed -->
     <div class="relative bg-black rounded-2xl overflow-hidden shadow-xl" style="aspect-ratio:16/9">
       <video id="video" autoplay playsinline muted class="w-full h-full object-cover"></video>
 
-      <!-- QR crosshair -->
-      <div id="qrCrosshair"
-           class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+      {% if not today_is_working %}
+      <div class="absolute inset-0 flex items-center justify-center bg-black/70">
+        <div class="text-center text-white px-8">
+          <div class="text-6xl mb-4">
+            {% if today_is_sunday %}<i class="fas fa-sun"></i>{% else %}<i class="fas fa-gift"></i>{% endif %}
+          </div>
+          <p class="text-2xl font-bold mb-2">
+            {% if today_is_sunday %}Sunday{% else %}{{ holiday_name }}{% endif %}
+          </p>
+          <p class="text-slate-300 text-sm">No attendance is recorded today.</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <div id="qrCrosshair" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
         <div class="text-center">
           <div class="w-52 h-52 border-2 border-blue-400 rounded-xl relative overflow-hidden mx-auto">
-            <div class="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-90"
-                 style="animation: scanLine 1.8s linear infinite"></div>
+            <div class="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-90" style="animation: scanLine 1.8s linear infinite"></div>
             <div class="absolute -top-px -left-px w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl"></div>
             <div class="absolute -top-px -right-px w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr"></div>
             <div class="absolute -bottom-px -left-px w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl"></div>
@@ -76,9 +105,7 @@
         </div>
       </div>
 
-      <!-- Face oval -->
-      <div id="faceCrosshair"
-           class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+      <div id="faceCrosshair" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
         <div class="text-center">
           <div class="w-44 h-56 border-4 border-yellow-400 rounded-full mx-auto
                       shadow-lg shadow-yellow-400/30" style="animation: pulse 1.5s ease-in-out infinite"></div>
@@ -87,11 +114,8 @@
         </div>
       </div>
 
-      <!-- Result flash overlay -->
-      <div id="resultFlash"
-           class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
-        <div id="resultCard"
-             class="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2">
+      <div id="resultFlash" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+        <div id="resultCard" class="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2">
           <div id="resultIcon" class="text-5xl mb-3"></div>
           <div id="resultName" class="font-bold text-xl text-slate-800"></div>
           <div id="resultClass" class="text-slate-500 text-sm mt-1"></div>
@@ -100,48 +124,59 @@
         </div>
       </div>
 
-      <!-- Countdown -->
-      <div id="countdownBadge"
-           class="absolute top-4 right-4 bg-black/70 text-white rounded-full w-14 h-14
+      <div id="countdownBadge" class="absolute top-4 right-4 bg-black/70 text-white rounded-full w-14 h-14
                   flex flex-col items-center justify-center hidden">
         <span id="countdownNum" class="font-bold text-xl leading-none"></span>
         <span class="text-xs opacity-70">sec</span>
       </div>
     </div>
 
-    <!-- Controls -->
     <div class="flex gap-3">
-      <button id="startBtn" onclick="startScanner()"
-              class="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700
-                     text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-sm">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        Start Scanner
-      </button>
-      <button id="stopBtn" onclick="stopScanner()" disabled
-              class="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600
+      <button id="startBtn" onclick="startScanner()" {% if not today_is_working %}disabled title="Disabled — today is a holiday/Sunday" {% endif %} class="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700
                      text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-sm
                      disabled:opacity-40 disabled:cursor-not-allowed">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10h6v4H9z"/>
-        </svg>
+        <i class="fas fa-play text-sm"></i>
+        {% if today_is_working %}Start Scanner{% elif today_is_sunday %}Sunday — Disabled{% else %}Holiday — Disabled{% endif %}
+      </button>
+      <button id="stopBtn" onclick="stopScanner()" disabled class="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600
+                     text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-sm
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+        <i class="fas fa-stop text-sm"></i>
         Stop Scanner
       </button>
     </div>
     <canvas id="captureCanvas" class="hidden"></canvas>
   </div>
 
-
   <div class="space-y-4">
 
-    <!-- Progress -->
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-      <h3 class="font-semibold text-slate-700 text-sm mb-3">Today's Progress</h3>
+      <h3 class="font-semibold text-slate-700 text-sm mb-3">
+        <i class="fas fa-calendar-day mr-1"></i> Today
+      </h3>
+      <p class="text-lg font-bold text-slate-800">{{ today|date:"l, M j" }}</p>
+      {% if today_is_sunday %}
+      <div class="mt-2 flex items-center gap-2 text-amber-600 text-sm">
+        <i class="fas fa-sun"></i>
+        <span class="font-medium">Sunday — no attendance</span>
+      </div>
+      {% elif today_is_holiday %}
+      <div class="mt-2 flex items-center gap-2 text-amber-600 text-sm">
+        <i class="fas fa-gift"></i>
+        <span class="font-medium">Holiday: {{ holiday_name }}</span>
+      </div>
+      {% else %}
+      <div class="mt-2 flex items-center gap-2 text-green-600 text-sm">
+        <i class="fas fa-check-circle"></i>
+        <span class="font-medium">Working day</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+      <h3 class="font-semibold text-slate-700 text-sm mb-3">
+        <i class="fas fa-chart-line mr-1"></i> Today's Progress
+      </h3>
       <div class="flex justify-between items-end mb-2">
         <div>
           <p class="text-4xl font-bold text-green-600" id="presentCount">—</p>
@@ -157,30 +192,42 @@
       </div>
     </div>
 
-    <!-- How it works -->
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-sm">
-      <h3 class="font-semibold text-slate-700 mb-3">How It Works</h3>
+      <h3 class="font-semibold text-slate-700 mb-3">
+        <i class="fas fa-info-circle mr-1"></i> How It Works
+      </h3>
       <div class="space-y-3 text-xs text-slate-600">
         <div class="flex gap-3">
           <span class="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">1</span>
-          <p>Student holds QR card — system reads ID automatically. Put the card away once identified.</p>
+          <p>Student holds QR card — system reads ID automatically.</p>
         </div>
         <div class="flex gap-3">
           <span class="w-6 h-6 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">2</span>
-          <p>Student looks at camera — system verifies face. 10-second window to complete.</p>
+          <p>Student looks at camera — face verified. 10-second window.</p>
         </div>
         <div class="flex gap-3">
-          <span class="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">✓</span>
-          <p>Green flash = attendance marked. System resets automatically for next student.</p>
+          <span class="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">
+            <i class="fas fa-check text-xs"></i>
+          </span>
+          <p>Green flash = attendance marked. Automatically resets for next student.</p>
+        </div>
+        <div class="flex gap-3">
+          <span class="w-6 h-6 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">
+            <i class="fas fa-ban text-xs"></i>
+          </span>
+          <p>Sundays and holidays are blocked — scanner won't mark attendance.</p>
         </div>
       </div>
     </div>
 
-    <!-- Scan log -->
     <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold text-slate-700 text-sm">Scan Log</h3>
-        <button onclick="clearLog()" class="text-xs text-slate-400 hover:text-slate-600">Clear</button>
+        <h3 class="font-semibold text-slate-700 text-sm">
+          <i class="fas fa-history mr-1"></i> Scan Log
+        </h3>
+        <button onclick="clearLog()" class="text-xs text-slate-400 hover:text-slate-600">
+          <i class="fas fa-trash-alt mr-1"></i> Clear
+        </button>
       </div>
       <div id="scanLog" class="space-y-1.5 overflow-y-auto text-xs" style="max-height:260px">
         <p class="text-slate-400 italic">No scans yet...</p>
@@ -191,269 +238,301 @@
 </div>
 
 <style>
-@keyframes scanLine { 0% { top: 0 } 100% { top: 100% } }
-@keyframes pulse { 0%,100% { opacity:.7; transform:scale(1) } 50% { opacity:1; transform:scale(1.03) } }
-</style>
+  @keyframes scanLine {
+    0% {
+      top: 0
+    }
 
+    100% {
+      top: 100%
+    }
+  }
+
+  @keyframes pulse {
+
+    0%,
+    100% {
+      opacity: .7;
+      transform: scale(1)
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1.03)
+    }
+  }
+
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
-const PROCESS_URL = '{% url "process_frame" %}';
+  const CSRF = '{{ csrf_token }}';
+  const PROCESS_URL = '{% url "process_frame" %}';
+  const TODAY_IS_WORKING = '{{ today_is_working|yesno:"true,false" }}';
 
-let phase = 'idle';
-let stream = null;
-let qrTimer = null;
-let faceTimer = null;
-let countdown = null;
-let presentCount = 0;
-let secsLeft = 10;
+  let phase = 'idle';
+  let stream = null;
+  let qrTimer = null;
+  let faceTimer = null;
+  let countdown = null;
+  let presentCount = 0;
+  let secsLeft = 10;
 
-const video   = document.getElementById('video');
-const capture = document.getElementById('captureCanvas');
-const ctx2d   = capture.getContext('2d');
+  const video = document.getElementById('video');
+  const capture = document.getElementById('captureCanvas');
+  const ctx2d = capture.getContext('2d');
 
-// Load today count
-fetch('/api/reports/daily/').then(r=>r.json()).then(d=>{
-  document.getElementById('presentCount').textContent = d.present;
-  document.getElementById('totalCount').textContent   = d.total_students;
-  presentCount = d.present;
-  updateBar(d.present, d.total_students);
-}).catch(()=>{});
+  fetch('/api/reports/daily/').then(r => r.json()).then(d => {
+    document.getElementById('presentCount').textContent = d.present;
+    document.getElementById('totalCount').textContent = d.total_students;
+    presentCount = d.present;
+    updateBar(d.present, d.total_students);
+  }).catch(() => {});
 
-function updateBar(p,t){ document.getElementById('progressBar').style.width = t>0?Math.round(p/t*100)+'%':'0%'; }
-
-
-async function startScanner(){
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280}}});
-    video.srcObject = stream;
-    await video.play();
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('stopBtn').disabled  = false;
-    enterQR();
-  } catch(e){ setBanner('error','❌ Camera denied — check browser permissions'); }
-}
-
-function stopScanner(){
-  killTimers();
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  video.srcObject = null;
-  phase = 'idle';
-  document.getElementById('startBtn').disabled = false;
-  document.getElementById('stopBtn').disabled  = true;
-  document.getElementById('qrCrosshair').classList.add('hidden');
-  document.getElementById('faceCrosshair').classList.add('hidden');
-  document.getElementById('countdownBadge').classList.add('hidden');
-  setPhaseUI('idle');
-  setBanner('idle','Scanner stopped');
-}
-
-function killTimers(){
-  clearInterval(qrTimer); clearInterval(faceTimer); clearInterval(countdown);
-  qrTimer=faceTimer=countdown=null;
-}
+  function updateBar(p, t) { document.getElementById('progressBar').style.width = t > 0 ? Math.round(p / t * 100) + '%' : '0%'; }
 
 
-function enterQR(){
-  killTimers();
-  phase = 'qr';
-  setPhaseUI('qr');
-  setBanner('qr','📷 Phase 1 — Hold student\'s QR card to the camera');
-  document.getElementById('qrCrosshair').classList.remove('hidden');
-  document.getElementById('faceCrosshair').classList.add('hidden');
-  document.getElementById('countdownBadge').classList.add('hidden');
-  document.getElementById('phase1Check').classList.add('hidden');
-  qrTimer = setInterval(sendFrame.bind(null,'qr_only',null), 600);
-}
-
-
-function enterFace(studentData){
-  killTimers();
-  phase = 'face';
-  setPhaseUI('face');
-  setBanner('face', `✅ QR: ${studentData.student_name} — Now look at the camera`);
-  document.getElementById('qrCrosshair').classList.add('hidden');
-  document.getElementById('faceCrosshair').classList.remove('hidden');
-  document.getElementById('faceStudentName').textContent = studentData.student_name;
-  document.getElementById('phase1Check').classList.remove('hidden');
-
-  // Countdown
-  secsLeft = 10;
-  document.getElementById('countdownBadge').classList.remove('hidden');
-  document.getElementById('countdownNum').textContent = secsLeft;
-  countdown = setInterval(()=>{
-    secsLeft--;
-    document.getElementById('countdownNum').textContent = secsLeft;
-    if(secsLeft <= 0){
-      killTimers();
-      setBanner('error','⏱ Timeout — scan QR again');
-      addLog('error', studentData.student_name+' (timeout)', studentData.student_class, null);
-      setTimeout(enterQR, 2000);
+  async function startScanner() {
+    if (!TODAY_IS_WORKING) {
+      setBanner('error', '🚫 Scanner disabled — today is a Sunday or holiday');
+      return;
     }
-  },1000);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } } });
+      video.srcObject = stream;
+      await video.play();
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      enterQR();
+    } catch (e) { setBanner('error', '❌ Camera denied — check browser permissions'); }
+  }
 
-  faceTimer = setInterval(sendFrame.bind(null,'face_and_mark', studentData.student_id), 800);
-}
-
-
-async function sendFrame(mode, studentId){
-  if(!video.videoWidth) return;
-  capture.width  = video.videoWidth;
-  capture.height = video.videoHeight;
-  ctx2d.drawImage(video,0,0);
-
-  const blob = await new Promise(res => capture.toBlob(res,'image/jpeg',0.85));
-  if(!blob) return;
-
-  const fd = new FormData();
-  fd.append('frame', blob, 'frame.jpg');
-  fd.append('mode', mode);
-  fd.append('csrfmiddlewaretoken', CSRF);
-  if(studentId) fd.append('student_id', studentId);
-
-  try {
-    const resp = await fetch(PROCESS_URL,{method:'POST',body:fd});
-    const data = await resp.json();
-    if(mode === 'qr_only')       handleQR(data);
-    else if(mode==='face_and_mark') handleFace(data);
-  } catch(e){ console.error(e); }
-}
-
-
-function handleQR(data){
-  if(data.status === 'no_qr' || data.status === 'no_frame') return;
-
-  if(data.status === 'qr_detected'){
+  function stopScanner() {
     killTimers();
-    enterFace(data);
-    return;
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    phase = 'idle';
+    document.getElementById('startBtn').disabled = !TODAY_IS_WORKING;
+    document.getElementById('stopBtn').disabled = true;
+    document.getElementById('qrCrosshair').classList.add('hidden');
+    document.getElementById('faceCrosshair').classList.add('hidden');
+    document.getElementById('countdownBadge').classList.add('hidden');
+    setPhaseUI('idle');
+    setBanner('idle', TODAY_IS_WORKING ? 'Scanner stopped' : '🚫 Today is a holiday/Sunday');
   }
-  if(data.status === 'already_marked'){
+
+  function killTimers() {
+    clearInterval(qrTimer); clearInterval(faceTimer); clearInterval(countdown);
+    qrTimer = faceTimer = countdown = null;
+  }
+
+
+  function enterQR() {
     killTimers();
-    flash('⚠️', data.student_name, data.student_class, 'Already marked today', 'orange');
-    addLog('warn', data.student_name, data.student_class, null, false);
-    setTimeout(enterQR, 2500);
-    return;
+    phase = 'qr';
+    setPhaseUI('qr');
+    setBanner('qr', '📷 Phase 1 — Hold student\'s QR card to the camera');
+    document.getElementById('qrCrosshair').classList.remove('hidden');
+    document.getElementById('faceCrosshair').classList.add('hidden');
+    document.getElementById('countdownBadge').classList.add('hidden');
+    document.getElementById('phase1Check').classList.add('hidden');
+    qrTimer = setInterval(sendFrame.bind(null, 'qr_only', null), 600);
   }
-  if(data.status === 'unknown_student'){
-    setBanner('error','❌ QR not in database');
-    return;
+
+
+  function enterFace(studentData) {
+    killTimers();
+    phase = 'face';
+    setPhaseUI('face');
+    setBanner('face', `✅ QR: ${ studentData.student_name } — Now look at the camera`);
+    document.getElementById('qrCrosshair').classList.add('hidden');
+    document.getElementById('faceCrosshair').classList.remove('hidden');
+    document.getElementById('faceStudentName').textContent = studentData.student_name;
+    document.getElementById('phase1Check').classList.remove('hidden');
+
+    secsLeft = 10;
+    document.getElementById('countdownBadge').classList.remove('hidden');
+    document.getElementById('countdownNum').textContent = secsLeft;
+    countdown = setInterval(() => {
+      secsLeft--;
+      document.getElementById('countdownNum').textContent = secsLeft;
+      if (secsLeft <= 0) {
+        killTimers();
+        setBanner('error', '⏱ Timeout — scan QR again');
+        addLog('error', studentData.student_name + ' (timeout)', studentData.student_class, null);
+        setTimeout(enterQR, 2000);
+      }
+    }, 1000);
+
+    faceTimer = setInterval(sendFrame.bind(null, 'face_and_mark', studentData.student_id), 800);
   }
-}
 
-function handleFace(data){
-  if(data.status === 'no_face') return;   // keep polling
 
-  killTimers();
+  async function sendFrame(mode, studentId) {
+    if (!video.videoWidth) return;
+    capture.width = video.videoWidth;
+    capture.height = video.videoHeight;
+    ctx2d.drawImage(video, 0, 0);
 
-  if(data.status === 'success'){
-    flash('✅', data.student_name, data.student_class,
-          data.is_late ? '⚠ Marked — LATE' : 'Attendance Marked!', 'green');
-    addLog('success', data.student_name, data.student_class, data.time, data.is_late);
-    presentCount++;
-    document.getElementById('presentCount').textContent = presentCount;
-    updateBar(presentCount, parseInt(document.getElementById('totalCount').textContent)||0);
-    // Stop after each student — press Start Scanner for next student
-    setTimeout(stopScanner, 2500);
-    return;
+    const blob = await new Promise(res => capture.toBlob(res, 'image/jpeg', 0.85));
+    if (!blob) return;
+
+    const fd = new FormData();
+    fd.append('frame', blob, 'frame.jpg');
+    fd.append('mode', mode);
+    fd.append('csrfmiddlewaretoken', CSRF);
+    if (studentId) fd.append('student_id', studentId);
+
+    try {
+      const resp = await fetch(PROCESS_URL, { method: 'POST', body: fd });
+      const data = await resp.json();
+
+      if (data.status === 'holiday') {
+        killTimers();
+        flash('🚫', '', '', data.message, 'orange');
+        setBanner('error', data.message);
+        setTimeout(stopScanner, 3000);
+        return;
+      }
+
+      if (mode === 'qr_only') handleQR(data);
+      else if (mode === 'face_and_mark') handleFace(data);
+    } catch (e) { console.error(e); }
   }
-  if(data.status === 'face_mismatch'){
-    flash('❌', data.student_name||'', '', 'Face does not match', 'red');
-    addLog('error', (data.student_name||'Unknown')+' — mismatch', '', null, false);
-    setTimeout(enterQR, 2500);
-    return;
+
+
+  function handleQR(data) {
+    if (data.status === 'no_qr' || data.status === 'no_frame') return;
+
+    if (data.status === 'qr_detected') {
+      killTimers();
+      enterFace(data);
+      return;
+    }
+    if (data.status === 'already_marked') {
+      killTimers();
+      flash('⚠️', data.student_name, data.student_class, 'Already marked today', 'orange');
+      addLog('warn', data.student_name, data.student_class, null, false);
+      setTimeout(enterQR, 2500);
+      return;
+    }
+    if (data.status === 'unknown_student') {
+      setBanner('error', '❌ QR not in database');
+      return;
+    }
   }
-  if(data.status === 'face_not_enrolled'){
-    flash('❌', data.student_name, data.student_class, 'Face not enrolled', 'red');
-    addLog('error', data.student_name+' — not enrolled', data.student_class, null, false);
-    setTimeout(enterQR, 3000);
+
+  function handleFace(data) {
+    if (data.status === 'no_face') return;
+
+    killTimers();
+
+    if (data.status === 'success') {
+      flash('✅', data.student_name, data.student_class,
+        data.is_late ? '⚠ Marked — LATE' : 'Attendance Marked!', 'green');
+      addLog('success', data.student_name, data.student_class, data.time, data.is_late);
+      presentCount++;
+      document.getElementById('presentCount').textContent = presentCount;
+      updateBar(presentCount, parseInt(document.getElementById('totalCount').textContent) || 0);
+      setTimeout(stopScanner, 2500);
+      return;
+    }
+    if (data.status === 'face_mismatch') {
+      flash('❌', data.student_name || '', '', 'Face does not match', 'red');
+      addLog('error', (data.student_name || 'Unknown') + ' — mismatch', '', null, false);
+      setTimeout(enterQR, 2500);
+      return;
+    }
+    if (data.status === 'face_not_enrolled') {
+      flash('❌', data.student_name, data.student_class, 'Face not enrolled', 'red');
+      addLog('error', data.student_name + ' — not enrolled', data.student_class, null, false);
+      setTimeout(enterQR, 3000);
+    }
+    if (data.status === 'outside_window') {
+      flash('⏰', '', '', data.message, 'orange');
+      addLog('error', data.message, '', null, false);
+      setTimeout(stopScanner, 3000);
+    }
   }
-  if(data.status === 'outside_window'){
-    flash('⏰', '', '', data.message, 'orange');
-    addLog('error', data.message, '', null, false);
-    setTimeout(stopScanner, 3000);
+
+
+  function setPhaseUI(p) {
+    const i1 = document.getElementById('phase1Indicator');
+    const i2 = document.getElementById('phase2Indicator');
+    const c2 = document.getElementById('phase2Circle');
+
+    if (p === 'qr' || p === 'idle') {
+      i1.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300';
+      i2.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300';
+      c2.className = 'w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0';
+    } else if (p === 'face') {
+      i1.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-green-50 border-2 border-green-400 transition-all duration-300';
+      i2.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-yellow-50 border-2 border-yellow-400 transition-all duration-300';
+      c2.className = 'w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0';
+    }
   }
-}
 
 
-function setPhaseUI(p){
-  const i1 = document.getElementById('phase1Indicator');
-  const i2 = document.getElementById('phase2Indicator');
-  const c2 = document.getElementById('phase2Circle');
-
-  if(p === 'qr' || p === 'idle'){
-    i1.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-blue-400 transition-all duration-300';
-    i2.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border-2 border-slate-200 opacity-50 transition-all duration-300';
-    c2.className = 'w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0';
-  } else if(p === 'face'){
-    i1.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-green-50 border-2 border-green-400 transition-all duration-300';
-    i2.className = 'flex-1 flex items-center gap-3 p-3 rounded-lg bg-yellow-50 border-2 border-yellow-400 transition-all duration-300';
-    c2.className = 'w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0';
+  function setBanner(type, text) {
+    const el = document.getElementById('instructionBanner');
+    const dot = document.getElementById('bannerDot');
+    const span = document.getElementById('bannerText');
+    const s = {
+      qr: ['bg-blue-50 border-blue-200', 'bg-blue-500 animate-ping', 'text-blue-700'],
+      face: ['bg-yellow-50 border-yellow-200', 'bg-yellow-500 animate-ping', 'text-yellow-800'],
+      idle: ['bg-slate-100 border-slate-200', 'bg-slate-400', 'text-slate-500'],
+      error: ['bg-red-50 border-red-200', 'bg-red-500', 'text-red-700'],
+    };
+    const [b, d, t] = s[type] || s.idle;
+    el.className = `rounded-xl px-5 py-3 flex items-center gap-3 border transition-all duration-300 ${ b }`;
+    dot.className = `w-3 h-3 rounded-full flex-shrink-0 ${ d }`;
+    span.className = `font-medium text-sm ${ t }`;
+    span.textContent = text;
   }
-}
 
 
-function setBanner(type, text){
-  const el   = document.getElementById('instructionBanner');
-  const dot  = document.getElementById('bannerDot');
-  const span = document.getElementById('bannerText');
-  const s = {
-    qr:    ['bg-blue-50 border-blue-200',     'bg-blue-500 animate-ping',   'text-blue-700'],
-    face:  ['bg-yellow-50 border-yellow-200', 'bg-yellow-500 animate-ping', 'text-yellow-800'],
-    idle:  ['bg-slate-100 border-slate-200',  'bg-slate-400',               'text-slate-500'],
-    error: ['bg-red-50 border-red-200',       'bg-red-500',                 'text-red-700'],
-  };
-  const [b,d,t] = s[type]||s.idle;
-  el.className   = `rounded-xl px-5 py-3 flex items-center gap-3 border transition-all duration-300 ${b}`;
-  dot.className  = `w-3 h-3 rounded-full flex-shrink-0 ${d}`;
-  span.className = `font-medium text-sm ${t}`;
-  span.textContent = text;
-}
+  function flash(icon, name, cls, msg, color) {
+    const overlay = document.getElementById('resultFlash');
+    const card = document.getElementById('resultCard');
+    const borders = { green: 'border-green-400', orange: 'border-yellow-400', red: 'border-red-400' };
+    const bgs = { green: 'rgba(34,197,94,.2)', orange: 'rgba(251,191,36,.2)', red: 'rgba(248,113,113,.2)' };
+    const texts = { green: 'text-green-600', orange: 'text-yellow-600', red: 'text-red-500' };
+
+    card.className = `bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2 ${ borders[color] }`;
+    document.getElementById('resultIcon').innerHTML = icon;
+    document.getElementById('resultName').textContent = name;
+    document.getElementById('resultClass').textContent = cls;
+    document.getElementById('resultMsg').className = `text-sm mt-2 font-semibold ${ texts[color] }`;
+    document.getElementById('resultMsg').textContent = msg;
+    document.getElementById('resultTime').textContent = new Date().toLocaleTimeString();
+
+    overlay.style.opacity = '1';
+    overlay.style.background = bgs[color];
+    setTimeout(() => { overlay.style.opacity = '0'; overlay.style.background = 'transparent'; }, 2200);
+  }
 
 
-function flash(icon, name, cls, msg, color){
-  const overlay = document.getElementById('resultFlash');
-  const card    = document.getElementById('resultCard');
-  const borders = {green:'border-green-400',orange:'border-yellow-400',red:'border-red-400'};
-  const bgs     = {green:'rgba(34,197,94,.2)',orange:'rgba(251,191,36,.2)',red:'rgba(248,113,113,.2)'};
-  const texts   = {green:'text-green-600',orange:'text-yellow-600',red:'text-red-500'};
+  function addLog(type, name, cls, time, isLate) {
+    const log = document.getElementById('scanLog');
+    log.querySelector('.italic')?.remove();
+    const c = { success: 'text-green-600', warn: 'text-yellow-600', error: 'text-red-500' };
+    const i = { success: '✓', warn: '⚠', error: '✗' };
+    const t = time || new Date().toTimeString().slice(0, 8);
+    const el = document.createElement('div');
+    el.className = `flex items-center gap-1.5 py-1 border-b border-slate-50 ${ c[type] }`;
+    el.innerHTML = `<span class="flex-shrink-0 w-4">${ i[type] }</span>
+    <span class="flex-1 truncate font-medium text-slate-700">${ name }</span>
+    ${ cls ? `<span class="text-slate-400">${ cls }</span>` : '' }
+    ${ isLate ? '<span class="text-yellow-500">[L]</span>' : '' }
+    <span class="text-slate-400 flex-shrink-0">${ t }</span>`;
+    log.insertBefore(el, log.firstChild);
+  }
 
-  card.className = `bg-white rounded-2xl shadow-2xl px-8 py-6 text-center max-w-xs mx-4 border-2 ${borders[color]}`;
-  document.getElementById('resultIcon').textContent  = icon;
-  document.getElementById('resultName').textContent  = name;
-  document.getElementById('resultClass').textContent = cls;
-  document.getElementById('resultMsg').className     = `text-sm mt-2 font-semibold ${texts[color]}`;
-  document.getElementById('resultMsg').textContent   = msg;
-  document.getElementById('resultTime').textContent  = new Date().toLocaleTimeString();
+  function clearLog() {
+    document.getElementById('scanLog').innerHTML = '<p class="text-slate-400 italic">No scans yet...</p>';
+  }
 
-  overlay.style.opacity    = '1';
-  overlay.style.background = bgs[color];
-  setTimeout(()=>{ overlay.style.opacity='0'; overlay.style.background='transparent'; }, 2200);
-}
-
-
-function addLog(type, name, cls, time, isLate){
-  const log = document.getElementById('scanLog');
-  log.querySelector('.italic')?.remove();
-  const c = {success:'text-green-600',warn:'text-yellow-600',error:'text-red-500'};
-  const i = {success:'✓',warn:'⚠',error:'✗'};
-  const t = time || new Date().toTimeString().slice(0,8);
-  const el = document.createElement('div');
-  el.className = `flex items-center gap-1.5 py-1 border-b border-slate-50 ${c[type]}`;
-  el.innerHTML = `<span class="flex-shrink-0 w-4">${i[type]}</span>
-    <span class="flex-1 truncate font-medium text-slate-700">${name}</span>
-    ${cls?`<span class="text-slate-400">${cls}</span>`:''}
-    ${isLate?'<span class="text-yellow-500">[L]</span>':''}
-    <span class="text-slate-400 flex-shrink-0">${t}</span>`;
-  log.insertBefore(el, log.firstChild);
-}
-
-function clearLog(){
-  document.getElementById('scanLog').innerHTML='<p class="text-slate-400 italic">No scans yet...</p>';
-}
-
-window.addEventListener('beforeunload', stopScanner);
+  window.addEventListener('beforeunload', stopScanner);
 </script>
 {% endblock %}

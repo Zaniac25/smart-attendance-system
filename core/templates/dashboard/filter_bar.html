@@ -1,28 +1,22 @@
-
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4 mb-5">
   <form method="GET" class="flex flex-wrap items-end gap-3" id="filterForm">
 
-    
     {% if date_str %}
-    <input type="hidden" name="date" value="{{ date_str }}"/>
+    <input type="hidden" name="date" value="{{ date_str }}" />
     {% endif %}
 
-
+    <!-- Search -->
     <div class="flex flex-col gap-1 flex-1 min-w-36">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Search</label>
-      <input type="text" name="q" value="{{ search }}"
-             placeholder="Name or ID..."
-             class="border border-slate-300 rounded-lg px-3 py-2 text-sm
-                    focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      <input type="text" name="q" value="{{ search }}" placeholder="Name, ID or Roll No..." class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-blue-500" />
     </div>
 
-
+    <!-- Course -->
     <div class="flex flex-col gap-1 min-w-28">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Course</label>
-      <select name="course" onchange="onCourseChange(this)"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-500"
-              id="courseSelect">
+      <select name="course" onchange="onCourseChange(this)" class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500" id="courseSelect">
         <option value="">All Courses</option>
         {% for c in courses %}
         <option value="{{ c }}" {% if c == course %}selected{% endif %}>{{ c }}</option>
@@ -30,11 +24,10 @@
       </select>
     </div>
 
-
+    <!-- Branch -->
     <div class="flex flex-col gap-1 min-w-28">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Branch</label>
-      <select name="branch"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+      <select name="branch" class="border border-slate-300 rounded-lg px-3 py-2 text-sm
                      focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="">All Branches</option>
         {% for b in branches %}
@@ -43,11 +36,10 @@
       </select>
     </div>
 
-
+    <!-- Section -->
     <div class="flex flex-col gap-1 min-w-24">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Section</label>
-      <select name="section"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+      <select name="section" class="border border-slate-300 rounded-lg px-3 py-2 text-sm
                      focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="">All Sections</option>
         {% for s in sections %}
@@ -56,11 +48,10 @@
       </select>
     </div>
 
-
-    <div class="flex flex-col gap-1 min-w-28">
+    <!-- Batch — reads from batches context variable populated by _get_filter_options -->
+    <div class="flex flex-col gap-1 min-w-32">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Batch</label>
-      <select name="batch"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+      <select name="batch" class="border border-slate-300 rounded-lg px-3 py-2 text-sm
                      focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="">All Batches</option>
         {% for b in batches %}
@@ -69,12 +60,10 @@
       </select>
     </div>
 
-
-    <div class="flex flex-col gap-1 min-w-28" id="yearFilterWrapper"
-         {% if not course %}style="display:none"{% endif %}>
+    <!-- Year — only relevant when a course is selected -->
+    <div class="flex flex-col gap-1 min-w-28" id="yearFilterWrapper" {style="{% if not course %}display:none{% endif %}" }>
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</label>
-      <select name="year"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm
+      <select name="year" class="border border-slate-300 rounded-lg px-3 py-2 text-sm
                      focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="">All Years</option>
         <option value="1st Year" {% if year == "1st Year" %}selected{% endif %}>1st Year</option>
@@ -84,48 +73,46 @@
       </select>
     </div>
 
-
+    <!-- Actions -->
     <div class="flex gap-2">
-      <button type="submit"
-              class="bg-primary hover:bg-blue-900 text-white text-sm font-semibold
+      <button type="submit" class="bg-primary hover:bg-blue-900 text-white text-sm font-semibold
                      px-4 py-2 rounded-lg transition-colors">
         Filter
       </button>
       {% if course or branch or section or batch or year or search %}
-      <a href="?{% if date_str %}date={{ date_str }}{% endif %}"
-         class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium
+      <a href="?{% if date_str %}date={{ date_str }}{% endif %}" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium
                 px-4 py-2 rounded-lg transition-colors">
         Clear
       </a>
       {% endif %}
     </div>
 
-
+    <!-- Active filter pills -->
     {% if course or branch or section or batch or year %}
     <div class="w-full flex flex-wrap gap-2 pt-1">
       {% if course %}
       <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
-        Course: {{ course }}
+        <i class="fas fa-graduation-cap text-xs"></i> {{ course }}
       </span>
       {% endif %}
       {% if branch %}
       <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
-        Branch: {{ branch }}
+        <i class="fas fa-code-branch text-xs"></i> {{ branch }}
       </span>
       {% endif %}
       {% if section %}
       <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-1 rounded-full">
-        Section: {{ section }}
+        <i class="fas fa-users text-xs"></i> Sec {{ section }}
       </span>
       {% endif %}
       {% if batch %}
-      <span class="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-1 rounded-full">
-        Batch: {{ batch }}
+      <span class="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-1 rounded-full">
+        <i class="fas fa-layer-group text-xs"></i> Batch {{ batch }}
       </span>
       {% endif %}
       {% if year %}
-      <span class="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-xs font-medium px-2.5 py-1 rounded-full">
-        {{ year }}
+      <span class="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-1 rounded-full">
+        <i class="fas fa-calendar text-xs"></i> {{ year }}
       </span>
       {% endif %}
     </div>
@@ -135,14 +122,14 @@
 </div>
 
 <script>
-function onCourseChange(select) {
-  const wrapper = document.getElementById('yearFilterWrapper');
-  if (select.value) {
-    wrapper.style.display = '';
-  } else {
-    wrapper.style.display = 'none';
-    const yearSelect = wrapper.querySelector('select[name="year"]');
-    if (yearSelect) yearSelect.value = '';
+  function onCourseChange(select) {
+    const wrapper = document.getElementById('yearFilterWrapper');
+    if (select.value) {
+      wrapper.style.display = '';
+    } else {
+      wrapper.style.display = 'none';
+      const yearSelect = wrapper.querySelector('select[name="year"]');
+      if (yearSelect) yearSelect.value = '';
+    }
   }
-}
 </script>
