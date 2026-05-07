@@ -1,0 +1,231 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ session.course }} — {{ session.name }} — ABIT{% endblock %}
+{% block page_title %}{{ session.course }} · {{ session.name }}{% endblock %}
+{% block page_subtitle %}
+{{ session.start_date|date:"M j, Y" }} → {{ session.end_date|date:"M j, Y" }}
+&nbsp;·&nbsp; {{ total_enrolled }} enrolled
+&nbsp;·&nbsp; {{ working_days }} working days
+&nbsp;·&nbsp; {{ holiday_count }} holiday{{ holiday_count|pluralize }}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'academic_sessions' %}" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700
+            text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+    <i class="fas fa-arrow-left text-sm"></i> All Sessions
+</a>
+{% if not session.is_active %}
+<form method="POST" action="{% url 'session_toggle' session.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="activate" />
+    <button type="submit" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white
+                   text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+        <i class="fas fa-play text-xs"></i> Activate
+    </button>
+</form>
+{% else %}
+<span class="flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold
+               px-4 py-2 rounded-lg">
+    <i class="fas fa-check-circle text-sm"></i> Active Session
+</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!--  Session Stat Cards  -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">
+            <i class="fas fa-users mr-1"></i> Enrolled
+        </p>
+        <p class="text-3xl font-bold text-blue-600">{{ total_enrolled }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">
+            <i class="fas fa-briefcase mr-1"></i> Working Days
+        </p>
+        <p class="text-3xl font-bold text-green-600">{{ working_days }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">
+            <i class="fas fa-gift mr-1"></i> Holidays
+        </p>
+        <p class="text-3xl font-bold text-amber-600">{{ holiday_count }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 text-center">
+        <p class="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">
+            <i class="fas fa-book-open mr-1"></i> Branches
+        </p>
+        <p class="text-3xl font-bold text-purple-600">{{ branches|length }}</p>
+    </div>
+</div>
+
+<!--  Breadcrumb Navigation  -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-3 mb-5
+            flex items-center gap-2 text-sm">
+    <a href="{% url 'academic_session_detail' session.id %}" class="text-blue-600 hover:text-blue-800 font-medium">
+        <i class="fas fa-graduation-cap mr-1"></i> All Branches
+    </a>
+    {% if selected_branch %}
+    <i class="fas fa-chevron-right text-slate-300 text-xs"></i>
+    <a href="{% url 'academic_session_detail' session.id %}?branch={{ selected_branch }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ selected_branch }}</a>
+    {% endif %}
+    {% if selected_section %}
+    <i class="fas fa-chevron-right text-slate-300 text-xs"></i>
+    <span class="text-slate-700 font-medium">Section {{ selected_section }}</span>
+    {% endif %}
+    <span class="ml-auto text-slate-400 text-xs">
+        {% if selected_branch and selected_section %}
+        Showing {{ students|length }} student{{ students|length|pluralize }}
+        {% elif selected_branch %}
+        Select a section to see students
+        {% else %}
+        Select a branch to drill down
+        {% endif %}
+    </span>
+</div>
+
+<!--  Branch Cards (always shown)  -->
+{% if not selected_branch %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    {% for br_data in branches %}
+    <a href="{% url 'academic_session_detail' session.id %}?branch={{ br_data.branch }}" class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md
+            hover:border-blue-200 transition-all group">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-code-branch text-blue-600 text-lg"></i>
+            </div>
+            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-medium">
+                {{ br_data.sections|length }} section{{ br_data.sections|length|pluralize }}
+            </span>
+        </div>
+        <h3 class="font-bold text-slate-800 text-lg">{{ br_data.branch }}</h3>
+        <p class="text-slate-500 text-sm mt-1">
+            <i class="fas fa-users mr-1 text-slate-400"></i> {{ br_data.total }} student{{ br_data.total|pluralize }}
+        </p>
+        <div class="mt-3 flex flex-wrap gap-1">
+            {% for sec_data in br_data.sections %}
+            <span class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                Sec {{ sec_data.section }} ({{ sec_data.total }})
+            </span>
+            {% endfor %}
+        </div>
+    </a>
+    {% empty %}
+    <div class="col-span-full text-center py-12 text-slate-400">
+        <i class="fas fa-users fa-3x mb-3 opacity-30"></i>
+        <p class="text-sm">No students enrolled in this session yet.</p>
+        <a href="{% url 'student_add' %}" class="text-blue-600 hover:underline text-sm mt-2 inline-block">
+            Add students →
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+{% elif selected_branch and not selected_section %}
+
+<!--  Section Cards (branch selected, no section)  -->
+{% for br_data in branches %}
+{% if br_data.branch == selected_branch %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    {% for sec_data in br_data.sections %}
+    <a href="{% url 'academic_session_detail' session.id %}?branch={{ selected_branch }}&section={{ sec_data.section }}" class="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md
+              hover:border-purple-200 transition-all group text-center">
+        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <i class="fas fa-users text-purple-600 text-xl"></i>
+        </div>
+        <p class="font-bold text-slate-800 text-2xl">{{ sec_data.total }}</p>
+        <p class="text-slate-500 text-sm mt-1">Section <strong>{{ sec_data.section }}</strong></p>
+        <p class="text-xs text-blue-600 mt-2 font-medium group-hover:underline">
+            View students →
+        </p>
+    </a>
+    {% empty %}
+    <div class="col-span-full text-center py-8 text-slate-400 text-sm">
+        No sections found for this branch.
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+{% else %}
+
+<!--  Student Table (branch + section selected)  -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-semibold text-slate-800">
+            <i class="fas fa-users mr-2 text-primary"></i>
+            {{ selected_branch }} · Section {{ selected_section }}
+            — {{ students|length }} student{{ students|length|pluralize }}
+        </h3>
+        <a href="{% url 'student_add' %}" class="text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-blue-900 transition-colors">
+            <i class="fas fa-plus mr-1"></i> Add Student
+        </a>
+    </div>
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200">
+            <tr>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">ID</th>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Name</th>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Roll No</th>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Batch</th>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Year</th>
+                <th class="text-center text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Face</th>
+                <th class="text-left text-slate-500 font-medium text-xs uppercase tracking-wide px-4 py-3">Attendance %</th>
+                <th class="px-4 py-3"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-3 font-mono text-xs text-slate-500">{{ student.student_id }}</td>
+                <td class="px-4 py-3 font-medium text-slate-800">{{ student.name }}</td>
+                <td class="px-4 py-3 font-mono text-xs text-slate-500">{{ student.roll_number|default:"—" }}</td>
+                <td class="px-4 py-3">
+                    {% if student.batch %}
+                    <span class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                        {{ student.batch }}
+                    </span>
+                    {% else %}
+                    <span class="text-slate-300 text-xs">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-xs text-slate-500">{{ student.current_year_label|default:"—" }}</td>
+                <td class="px-4 py-3 text-center">
+                    {% if student.face_enrolled %}
+                    <i class="fas fa-check-circle text-green-500"></i>
+                    {% else %}
+                    <span class="text-slate-300">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    {% with pct=student.attendance_percentage %}
+                    <div class="flex items-center gap-2">
+                        <div class="w-16 bg-slate-100 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if pct >= 75 %}bg-green-500{% elif pct >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}" {style="width: {{ pct }}%" }></div>
+                        </div>
+                        <span class="text-xs font-semibold {% if pct >= 75 %}text-green-600{% elif pct >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
+                            {{ pct }}%
+                        </span>
+                    </div>
+                    {% endwith %}
+                </td>
+                <td class="px-4 py-3">
+                    <a href="{% url 'student_detail' student.student_id %}" class="text-blue-600 hover:text-blue-800 text-xs font-medium">View →</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                    No students found in this section.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endif %}
+{% endblock %}
