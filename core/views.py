@@ -1,15 +1,3 @@
-"""
-Views — Complete
-================
-All views for the ABIT Attendance System:
-  - Auth (login/logout)
-  - Dashboard, Reports, Settings
-  - Browser-based scanner (process frames via POST)
-  - Student CRUD + CSV bulk import
-  - QR code generation + download
-  - REST API for desktop scanner fallback
-"""
-
 import os
 import io
 import csv
@@ -316,20 +304,8 @@ class ScannerPageView(View):
 
 @method_decorator(login_required, name='dispatch')
 class ProcessFrameView(View):
-    """
-    POST /scanner/process-frame/
-    Two modes selected by the 'mode' POST field:
-
-    mode=qr_only
-        Decode QR from frame. Do NOT mark attendance.
-        Returns: qr_detected | already_marked | unknown_student | no_qr | invalid_qr
-
-    mode=face_and_mark
-        Verify face for student_id. If verified, mark attendance.
-        Returns: success | face_mismatch | face_not_enrolled | no_face | already_marked
-    """
     def post(self, request):
-        # ── Holiday / Sunday guard — MUST be first ────────────────────────────
+        # Holiday / Sunday guard — MUST be first 
         from .models import is_today_a_working_day
         is_working, reason = is_today_a_working_day()
         if not is_working:
@@ -338,7 +314,6 @@ class ProcessFrameView(View):
                 'message': reason,
                 'icon':    '🚫',
             })
-        # ─────────────────────────────────────────────────────────────────────
  
         mode = request.POST.get('mode', 'qr_only')
         frame_file = request.FILES.get('frame')
@@ -347,7 +322,7 @@ class ProcessFrameView(View):
  
         image_bytes = frame_file.read()
  
-        # ── QR decode mode ─────────────────────────────────────────────────
+        # QR decode mode 
         if mode == 'qr_only':
             qr_results = _decode_qr_from_bytes(image_bytes)
             if not qr_results:
@@ -393,7 +368,7 @@ class ProcessFrameView(View):
                 'student_class': student.student_class,
             })
  
-        # ── Face + mark mode ───────────────────────────────────────────────
+        # Face + mark mode 
         if mode == 'face_and_mark':
             student_id = request.POST.get('student_id', '').strip()
             if not student_id:
@@ -490,20 +465,22 @@ class ReportsView(View):
             target_date = date.fromisoformat(date_str)
         except ValueError:
             target_date = timezone.localdate()
-
+ 
         # Apply filters to scope the report
         qs = Student.objects.all()
         qs, active_filters = _apply_filters(qs, request)
         filtered_ids = list(qs.values_list('student_id', flat=True))
-
+ 
         report     = get_daily_report(target_date, student_ids=filtered_ids)
         cls_report = get_classwise_report(target_date, student_ids=filtered_ids)
         trend      = get_weekly_trend(days=14)
-
+ 
         context = {
-            'report': report,
+            'report':       report,
             'class_report': cls_report,
-            'date_str': date_str,
+            'date_str':     date_str,
+            'today':        timezone.localdate(),           # needed by export modal
+            'all_sessions': AcademicSession.objects.all().order_by('-start_date'),  # needed by export modal
             'trend_labels':  json.dumps(trend['labels']),
             'trend_present': json.dumps(trend['present']),
             **active_filters,
@@ -549,6 +526,154 @@ class ExportExcelView(View):
         response = HttpResponse(output.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="attendance_{date_str}.xlsx"'
+        return response
+    
+
+@method_decorator(login_required, name='dispatch')
+class ExportMonthlyView(View):
+    def get(self, request):
+        today = timezone.localdate()
+        try:
+            year  = int(request.GET.get('year',  today.year))
+            month = int(request.GET.get('month', today.month))
+        except (ValueError, TypeError):
+            year, month = today.year, today.month
+ 
+        # Clamp month to valid range
+        month = max(1, min(12, month))
+ 
+        report = get_monthly_report(year, month)
+ 
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+ 
+            pd.DataFrame([{
+                'Report Type':    'Monthly Attendance Report',
+                'Month':          report['month_name'],
+                'Working Days':   report['working_days'],
+                'Total Students': report['total_students'],
+                'Generated On':   str(today),
+            }]).to_excel(writer, sheet_name='Summary', index=False)
+ 
+            if report['class_summary']:
+                class_df = pd.DataFrame([{
+                    'Class':              r['class'],
+                    'Total Students':     r['total'],
+                    'Avg Present Days':   r['avg_present'],
+                    'Avg Attendance %':   f"{r['avg_percentage']}%",
+                } for r in report['class_summary']])
+                # Write starting at row 4 (below the summary block)
+                class_df.to_excel(writer, sheet_name='Summary', index=False,
+                                  startrow=3, startcol=0)
+ 
+            if report['rows']:
+                pd.DataFrame([{
+                    'Student ID':   r['student_id'],
+                    'Name':         r['name'],
+                    'Class':        r['class'],
+                    'Batch':        r['batch'],
+                    'Working Days': report['working_days'],
+                    'Present':      r['present'],
+                    'Absent':       r['absent'],
+                    'Late':         r['late'],
+                    'Attendance %': f"{r['percentage']}%",
+                    'Status':       'OK' if r['percentage'] >= 75 else 'LOW',
+                } for r in report['rows']]).to_excel(
+                    writer, sheet_name='Student Data', index=False
+                )
+ 
+        output.seek(0)
+        filename = f"monthly_attendance_{year}_{str(month).zfill(2)}.xlsx"
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+ 
+ 
+@method_decorator(login_required, name='dispatch')
+class ExportSessionView(View):
+    def get(self, request):
+        session_id = request.GET.get('session_id', '').strip()
+ 
+        if session_id:
+            session = get_object_or_404(AcademicSession, id=session_id)
+        else:
+            session = AcademicSession.objects.filter(is_active=True).first()
+            if not session:
+                session = AcademicSession.objects.order_by('-start_date').first()
+            if not session:
+                return HttpResponse('No academic sessions found.', status=404)
+ 
+        report = get_session_report(session)
+ 
+        rows_sorted = sorted(report['rows'], key=lambda r: r['percentage'])
+ 
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+ 
+            pd.DataFrame([{
+                'Report Type':    'Session Attendance Report',
+                'Session':        report['session_name'],
+                'Start Date':     str(report['start_date']),
+                'End Date':       str(report['end_date']),
+                'Working Days':   report['working_days'],
+                'Total Holidays': report['holiday_count'],
+                'Total Students': report['total_students'],
+                'Generated On':   str(timezone.localdate()),
+            }]).to_excel(writer, sheet_name='Summary', index=False)
+ 
+            if report['class_summary']:
+                class_df = pd.DataFrame([{
+                    'Class':              r['class'],
+                    'Total Students':     r['total'],
+                    'Avg Present Days':   r['avg_present'],
+                    'Avg Attendance %':   f"{r['avg_percentage']}%",
+                } for r in report['class_summary']])
+                class_df.to_excel(writer, sheet_name='Summary', index=False,
+                                  startrow=3, startcol=0)
+ 
+            if rows_sorted:
+                pd.DataFrame([{
+                    'Student ID':   r['student_id'],
+                    'Name':         r['name'],
+                    'Class':        r['class'],
+                    'Batch':        r['batch'],
+                    'Roll Number':  r['roll_number'],
+                    'Working Days': report['working_days'],
+                    'Present':      r['present'],
+                    'Absent':       r['absent'],
+                    'Late':         r['late'],
+                    'Attendance %': f"{r['percentage']}%",
+                    'Status':       'OK' if r['percentage'] >= 75 else 'LOW ATTENDANCE',
+                } for r in rows_sorted]).to_excel(
+                    writer, sheet_name='All Students', index=False
+                )
+ 
+            low = [r for r in rows_sorted if r['percentage'] < 75]
+            if low:
+                pd.DataFrame([{
+                    'Student ID':   r['student_id'],
+                    'Name':         r['name'],
+                    'Class':        r['class'],
+                    'Batch':        r['batch'],
+                    'Present':      r['present'],
+                    'Absent':       r['absent'],
+                    'Attendance %': f"{r['percentage']}%",
+                    'Shortfall':    f"{max(0, 75 - r['percentage']):.1f}% below 75%",
+                } for r in low]).to_excel(
+                    writer, sheet_name='Low Attendance', index=False
+                )
+ 
+        output.seek(0)
+        safe_name = session.name.replace('/', '-').replace(' ', '_')
+        filename  = f"session_attendance_{session.course}_{safe_name}.xlsx"
+        response  = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
 
@@ -1672,30 +1797,136 @@ class TeacherReportsView(TeacherRequiredMixin, View):
 
 @method_decorator(login_required, name='dispatch')
 class TeacherExportExcelView(TeacherRequiredMixin, View):
-    """Teacher can export attendance for their classes only."""
+    """
+    Teacher export — scoped to assigned classes only.
+    Supports:
+      GET ?mode=daily&date=YYYY-MM-DD       → daily report (default)
+      GET ?mode=monthly&year=YYYY&month=M   → monthly per-student summary
+      GET ?mode=session&session_id=N        → full session report
+    """
     def get(self, request):
-        profile  = get_object_or_404(TeacherProfile, user=request.user)
+        profile     = get_object_or_404(TeacherProfile, user=request.user)
+        student_ids = profile.get_student_ids()
+        mode        = request.GET.get('mode', 'daily')
+ 
+        # ── Monthly  ─────────────
+        if mode == 'monthly':
+            today = timezone.localdate()
+            try:
+                year  = int(request.GET.get('year',  today.year))
+                month = int(request.GET.get('month', today.month))
+            except (ValueError, TypeError):
+                year, month = today.year, today.month
+            month  = max(1, min(12, month))
+            report = get_monthly_report(year, month, student_ids=student_ids)
+ 
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                pd.DataFrame([{
+                    'Report Type':    'Monthly Attendance Report',
+                    'Month':          report['month_name'],
+                    'Working Days':   report['working_days'],
+                    'Total Students': report['total_students'],
+                    'Generated On':   str(today),
+                }]).to_excel(writer, sheet_name='Summary', index=False)
+ 
+                if report['rows']:
+                    pd.DataFrame([{
+                        'Student ID':   r['student_id'],
+                        'Name':         r['name'],
+                        'Class':        r['class'],
+                        'Batch':        r['batch'],
+                        'Working Days': report['working_days'],
+                        'Present':      r['present'],
+                        'Absent':       r['absent'],
+                        'Late':         r['late'],
+                        'Attendance %': f"{r['percentage']}%",
+                        'Status':       'OK' if r['percentage'] >= 75 else 'LOW',
+                    } for r in report['rows']]).to_excel(
+                        writer, sheet_name='Student Data', index=False
+                    )
+ 
+            output.seek(0)
+            filename = f"monthly_{year}_{str(month).zfill(2)}_teacher.xlsx"
+            response = HttpResponse(output.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+ 
+        # ── Session  ─────────────
+        if mode == 'session':
+            session_id = request.GET.get('session_id', '').strip()
+            if session_id:
+                session = get_object_or_404(AcademicSession, id=session_id)
+            else:
+                session = AcademicSession.objects.filter(is_active=True).first()
+                if not session:
+                    return HttpResponse('No active session found.', status=404)
+ 
+            report = get_session_report(session, student_ids=student_ids)
+            rows_sorted = sorted(report['rows'], key=lambda r: r['percentage'])
+ 
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                pd.DataFrame([{
+                    'Session':        report['session_name'],
+                    'Working Days':   report['working_days'],
+                    'Total Students': report['total_students'],
+                }]).to_excel(writer, sheet_name='Summary', index=False)
+ 
+                if rows_sorted:
+                    pd.DataFrame([{
+                        'Student ID':   r['student_id'],
+                        'Name':         r['name'],
+                        'Class':        r['class'],
+                        'Present':      r['present'],
+                        'Absent':       r['absent'],
+                        'Late':         r['late'],
+                        'Attendance %': f"{r['percentage']}%",
+                        'Status':       'OK' if r['percentage'] >= 75 else 'LOW',
+                    } for r in rows_sorted]).to_excel(
+                        writer, sheet_name='All Students', index=False
+                    )
+ 
+                low = [r for r in rows_sorted if r['percentage'] < 75]
+                if low:
+                    pd.DataFrame([{
+                        'Student ID':   r['student_id'],
+                        'Name':         r['name'],
+                        'Class':        r['class'],
+                        'Attendance %': f"{r['percentage']}%",
+                    } for r in low]).to_excel(
+                        writer, sheet_name='Low Attendance', index=False
+                    )
+ 
+            output.seek(0)
+            safe_name = session.name.replace('/', '-').replace(' ', '_')
+            filename  = f"session_{session.course}_{safe_name}_teacher.xlsx"
+            response  = HttpResponse(output.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+ 
+        # ── Daily (default)  ─────
         date_str = request.GET.get('date', timezone.localdate().isoformat())
-
         try:
             target_date = date.fromisoformat(date_str)
         except ValueError:
             target_date = timezone.localdate()
-
-        student_ids = profile.get_student_ids()
+ 
         report = get_daily_report(target_date, student_ids=student_ids)
-
+ 
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             pd.DataFrame([{
-                'Date': str(report['date']),
-                'Total': report['total_students'],
+                'Date':    str(report['date']),
+                'Total':   report['total_students'],
                 'Present': report['present'],
-                'Absent': report['absent'],
-                'Late': report['late'],
+                'Absent':  report['absent'],
+                'Late':    report['late'],
                 'Attendance %': f"{report['attendance_percentage']}%",
             }]).to_excel(writer, sheet_name='Summary', index=False)
-
+ 
             if report['present_students']:
                 pd.DataFrame([{
                     'ID':    r.student.student_id,
@@ -1703,20 +1934,20 @@ class TeacherExportExcelView(TeacherRequiredMixin, View):
                     'Class': r.student.student_class,
                     'Time':  str(r.time),
                     'Late':  'Yes' if r.is_late else 'No',
-                } for r in report['present_students']]).to_excel(writer, sheet_name='Present', index=False)
-
+                } for r in report['present_students']]).to_excel(
+                    writer, sheet_name='Present', index=False)
+ 
             if report['absent_students']:
                 pd.DataFrame([{
                     'ID':    s.student_id,
                     'Name':  s.name,
                     'Class': s.student_class,
-                } for s in report['absent_students']]).to_excel(writer, sheet_name='Absent', index=False)
-
+                } for s in report['absent_students']]).to_excel(
+                    writer, sheet_name='Absent', index=False)
+ 
         output.seek(0)
-        response = HttpResponse(
-            output.read(),
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
+        response = HttpResponse(output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="attendance_{date_str}_teacher.xlsx"'
         return response
 
