@@ -5,20 +5,170 @@
 {% block page_subtitle %}View and export daily attendance data{% endblock %}
 
 {% block header_actions %}
-  <a href="{% url 'export_excel' %}?date={{ date_str }}"
-     class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+  <!-- Export button triggers modal -->
+  <button onclick="document.getElementById('exportModal').classList.remove('hidden')"
+          class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
     <i class="fas fa-file-excel text-sm"></i>
-    Export Excel
-  </a>
-
+    Export
+  </button>
   <a href="{% url 'attendance_alert' %}"
      class="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
     <i class="fas fa-bell text-sm"></i>
-    View Attendance Alerts
+    Alerts
   </a>
 {% endblock %}
 
 {% block content %}
+
+<div id="exportModal"
+     class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden"
+     onclick="if(event.target===this) this.classList.add('hidden')">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+       onclick="event.stopPropagation()">
+
+    <!-- Modal header -->
+    <div class="bg-primary px-6 py-4 flex items-center justify-between">
+      <div>
+        <h3 class="text-white font-semibold text-lg">Export Attendance Report</h3>
+        <p class="text-blue-300 text-xs mt-0.5">Choose report type and date range</p>
+      </div>
+      <button onclick="document.getElementById('exportModal').classList.add('hidden')"
+              class="text-blue-300 hover:text-white transition-colors">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <!-- Tab selector -->
+    <div class="flex border-b border-slate-200">
+      <button id="tabDaily"
+              onclick="switchExportTab('daily')"
+              class="flex-1 py-3 text-sm font-semibold text-white bg-primary border-b-2 border-white transition-all">
+        <i class="fas fa-calendar-day mr-1"></i> Daily
+      </button>
+      <button id="tabMonthly"
+              onclick="switchExportTab('monthly')"
+              class="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all">
+        <i class="fas fa-calendar-alt mr-1"></i> Monthly
+      </button>
+      <button id="tabSession"
+              onclick="switchExportTab('session')"
+              class="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 border-b-2 border-transparent transition-all">
+        <i class="fas fa-graduation-cap mr-1"></i> Session
+      </button>
+    </div>
+
+
+    <div id="panelDaily" class="p-6 space-y-4">
+      <p class="text-sm text-slate-500">
+        <i class="fas fa-info-circle mr-1 text-slate-400"></i>
+        Exports present/absent lists and class-wise summary for a single date.
+      </p>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">
+          <i class="fas fa-calendar-day mr-1 text-slate-400"></i> Date
+        </label>
+        <input type="date" id="dailyDate" value="{{ date_str }}"
+               class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      </div>
+      <div class="bg-slate-50 rounded-lg px-4 py-3 text-xs text-slate-600 space-y-1">
+        <p><i class="fas fa-table mr-1 text-slate-400"></i> <strong>Sheets:</strong> Summary · Present · Absent · Class-wise</p>
+      </div>
+      <button onclick="downloadDaily()"
+              class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold
+                     py-2.5 rounded-lg transition-colors text-sm">
+        <i class="fas fa-download mr-2"></i> Download Daily Report
+      </button>
+    </div>
+
+
+    <div id="panelMonthly" class="p-6 space-y-4 hidden">
+      <p class="text-sm text-slate-500">
+        <i class="fas fa-info-circle mr-1 text-slate-400"></i>
+        Per-student attendance summary across a full calendar month.
+        Working days exclude Sundays and holidays.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="fas fa-calendar-alt mr-1 text-slate-400"></i> Month
+          </label>
+          <select id="monthlyMonth"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">
+            <i class="fas fa-hashtag mr-1 text-slate-400"></i> Year
+          </label>
+          <input type="number" id="monthlyYear"
+                 value="{{ today.year }}" min="2020" max="2099"
+                 class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
+      </div>
+      <div class="bg-slate-50 rounded-lg px-4 py-3 text-xs text-slate-600 space-y-1">
+        <p><i class="fas fa-table mr-1 text-slate-400"></i> <strong>Sheets:</strong> Summary (with class averages) · Student Data</p>
+        <p><i class="fas fa-info-circle mr-1 text-slate-400"></i> Each row = one student's present / absent / late counts + %</p>
+      </div>
+      <button onclick="downloadMonthly()"
+              class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold
+                     py-2.5 rounded-lg transition-colors text-sm">
+        <i class="fas fa-download mr-2"></i> Download Monthly Report
+      </button>
+    </div>
+
+    <div id="panelSession" class="p-6 space-y-4 hidden">
+      <p class="text-sm text-slate-500">
+        <i class="fas fa-info-circle mr-1 text-slate-400"></i>
+        Cumulative per-student report for a full academic session.
+        Includes a separate sheet for students below 75%.
+      </p>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">
+          <i class="fas fa-graduation-cap mr-1 text-slate-400"></i> Academic Session
+        </label>
+        <select id="sessionSelect"
+                class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {% for s in all_sessions %}
+          <option value="{{ s.id }}">
+            {{ s.course }} — {{ s.name }}
+            {% if s.is_active %}(Active){% endif %}
+          </option>
+          {% empty %}
+          <option value="">No sessions — create one first</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="bg-slate-50 rounded-lg px-4 py-3 text-xs text-slate-600 space-y-1">
+        <p><i class="fas fa-table mr-1 text-slate-400"></i> <strong>Sheets:</strong> Summary · All Students · Low Attendance (&lt;75%)</p>
+        <p><i class="fas fa-sort-amount-up mr-1 text-slate-400"></i> Students sorted by attendance % ascending (worst first)</p>
+        <p><i class="fas fa-ban mr-1 text-slate-400"></i> Sundays + holidays excluded from working days</p>
+      </div>
+      <button onclick="downloadSession()"
+              class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold
+                     py-2.5 rounded-lg transition-colors text-sm">
+        <i class="fas fa-download mr-2"></i> Download Session Report
+      </button>
+    </div>
+
+  </div>
+</div>
+
 
 <!-- Date Filter -->
 <div class="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-4 mb-4 flex items-center gap-4">
@@ -29,7 +179,8 @@
     {% if section %}<input type="hidden" name="section" value="{{ section }}"/>{% endif %}
     <label class="text-sm font-medium text-slate-700">Date:</label>
     <input type="date" name="date" value="{{ date_str }}"
-           class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+           class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-blue-500"/>
     <button type="submit"
             class="bg-primary text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-900 transition-colors">
       <i class="fas fa-eye mr-1"></i> View
@@ -76,7 +227,7 @@
   <canvas id="trendChart" height="70"></canvas>
 </div>
 
-<!-- Tables: Present + Absent side by side -->
+<!-- Tables: Present + Absent -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
   <!-- Present Students -->
@@ -111,13 +262,13 @@
             <td class="py-2 pr-3">
               <span id="time-display-{{ r.id }}"
                     class="{% if r.is_late %}text-yellow-600 font-medium{% else %}text-slate-600{% endif %}">
-                {{ r.time|time:"g:i A" }}{% if r.is_late %} {% endif %}
+                {{ r.time|time:"g:i A" }}
               </span>
             </td>
             <td class="py-2 pr-3">
               {% if r.is_manual %}
                 <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                   Manual
+                  <i class="fas fa-pen-alt mr-1"></i> Manual
                 </span>
               {% else %}
                 <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
@@ -133,21 +284,20 @@
                          class="border border-slate-300 rounded px-2 py-0.5 text-xs w-24"/>
                   <button onclick="saveEdit('{{ r.id }}')"
                           class="text-green-600 hover:text-green-800 text-xs font-semibold">
-                    <i class="fas fa-save"></i> Save
+                    <i class="fas fa-save"></i>
                   </button>
                   <button onclick="cancelEdit('{{ r.id }}')"
                           class="text-slate-400 hover:text-slate-600 text-xs">
                     <i class="fas fa-times"></i>
                   </button>
                 </div>
-                <button onclick="startEdit('{{ r.id }}')"
-                        id="edit-btn-{{ r.id }}"
-                        class="text-amber-500 hover:text-amber-700 text-xs font-medium">
-                  <i class="fas fa-edit"></i> Edit
+                <button onclick="startEdit('{{ r.id }}')" id="edit-btn-{{ r.id }}"
+                        class="text-amber-500 hover:text-amber-700 text-xs">
+                  <i class="fas fa-edit"></i>
                 </button>
                 <button onclick="deleteAttendance('{{ r.id }}', '{{ r.student.student_id }}')"
-                        class="text-red-400 hover:text-red-600 text-xs font-medium">
-                  <i class="fas fa-trash-alt"></i> Delete
+                        class="text-red-400 hover:text-red-600 text-xs">
+                  <i class="fas fa-trash-alt"></i>
                 </button>
               </div>
             </td>
@@ -184,9 +334,7 @@
           <tr class="border-b border-slate-50 hover:bg-slate-50">
             <td class="py-2 pr-3 font-mono text-slate-600 text-xs">{{ s.student_id }}</td>
             <td class="py-2 pr-3 font-medium">
-              <a href="{% url 'student_detail' s.student_id %}" class="hover:text-blue-600 transition-colors">
-                {{ s.name }}
-              </a>
+              <a href="{% url 'student_detail' s.student_id %}" class="hover:text-blue-600">{{ s.name }}</a>
             </td>
             <td class="py-2 text-slate-500">{{ s.student_class }}</td>
           </tr>
@@ -196,7 +344,7 @@
     </div>
     {% else %}
     <p class="text-green-600 text-sm text-center py-8 font-medium">
-      <i class="fas fa-trophy mr-1"></i>  Full attendance today!
+      <i class="fas fa-trophy mr-1"></i> Full attendance today!
     </p>
     {% endif %}
   </div>
@@ -217,7 +365,7 @@
           <th class="text-center pb-3 px-4"><i class="fas fa-check-circle mr-1"></i> Present</th>
           <th class="text-center pb-3 px-4"><i class="fas fa-times-circle mr-1"></i> Absent</th>
           <th class="text-center pb-3 px-4"><i class="fas fa-clock mr-1"></i> Late</th>
-          <th class="text-left pb-3 pl-4"><i class="fas fa-chart-line mr-1"></i> Attendance Rate</th>
+          <th class="text-left pb-3 pl-4"><i class="fas fa-chart-line mr-1"></i> Rate</th>
         </tr>
       </thead>
       <tbody>
@@ -231,10 +379,16 @@
           <td class="py-3 pl-4">
             <div class="flex items-center gap-2">
               <div class="flex-1 bg-slate-100 rounded-full h-2 w-32">
-                <div class="h-2 rounded-full {% if row.percentage >= 75 %}bg-green-500{% elif row.percentage >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
-                     {style="width: {{ row.percentage }}%"}></div>
+                <div class="h-2 rounded-full
+                  {% if row.percentage >= 75 %}bg-green-500
+                  {% elif row.percentage >= 50 %}bg-yellow-400
+                  {% else %}bg-red-400{% endif %}"
+                  {style="width: {{ row.percentage }}%"}></div>
               </div>
-              <span class="text-xs font-bold {% if row.percentage >= 75 %}text-green-600{% elif row.percentage >= 50 %}text-yellow-600{% else %}text-red-500{% endif %}">
+              <span class="text-xs font-bold
+                {% if row.percentage >= 75 %}text-green-600
+                {% elif row.percentage >= 50 %}text-yellow-600
+                {% else %}text-red-500{% endif %}">
                 {{ row.percentage }}%
               </span>
             </div>
@@ -251,14 +405,17 @@
 
 {% block extra_js %}
 <script>
-  // 14-day trend
+
+  const trendLabels  = '{{ trend_labels|safe }}';
+  const trendPresent = '{{ trend_present|safe }}';
+
   new Chart(document.getElementById('trendChart'), {
     type: 'bar',
     data: {
-      labels: '{{ trend_labels|safe }}',
+      labels: trendLabels,
       datasets: [{
         label: 'Present',
-        data: '{{ trend_present|safe }}',
+        data: trendPresent,
         backgroundColor: 'rgba(34,197,94,0.7)',
         borderRadius: 6,
       }],
@@ -274,13 +431,54 @@
   });
 
 
+  function switchExportTab(tab) {
+    ['daily', 'monthly', 'session'].forEach(t => {
+      const btn   = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+      const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
+      const active = t === tab;
+      btn.className = `flex-1 py-3 text-sm font-semibold transition-all border-b-2 ${
+        active
+          ? 'text-white bg-primary border-white'
+          : 'text-slate-500 hover:bg-slate-50 border-transparent'
+      }`;
+      panel.classList.toggle('hidden', !active);
+    });
+  }
+
+  // Set current month as default in monthly selector
+  document.getElementById('monthlyMonth').value = new Date().getMonth() + 1;
+
+
+  function downloadDaily() {
+    const d = document.getElementById('dailyDate').value;
+    if (!d) { alert('Please select a date.'); return; }
+    window.location.href = `{% url 'export_excel' %}?date=${d}`;
+    document.getElementById('exportModal').classList.add('hidden');
+  }
+
+  function downloadMonthly() {
+    const month = document.getElementById('monthlyMonth').value;
+    const year  = document.getElementById('monthlyYear').value;
+    if (!month || !year) { alert('Please select month and year.'); return; }
+    window.location.href = `{% url 'export_monthly' %}?year=${year}&month=${month}`;
+    document.getElementById('exportModal').classList.add('hidden');
+  }
+
+  function downloadSession() {
+    const sel = document.getElementById('sessionSelect');
+    if (!sel || !sel.value) { alert('Please select a session.'); return; }
+    window.location.href = `{% url 'export_session' %}?session_id=${sel.value}`;
+    document.getElementById('exportModal').classList.add('hidden');
+  }
+
+
   function startEdit(id) {
-    document.getElementById(`edit-btn-${id}`).style.display = 'none';
+    document.getElementById(`edit-btn-${id}`).style.display  = 'none';
     document.getElementById(`edit-form-${id}`).style.display = 'flex';
   }
 
   function cancelEdit(id) {
-    document.getElementById(`edit-btn-${id}`).style.display = '';
+    document.getElementById(`edit-btn-${id}`).style.display  = '';
     document.getElementById(`edit-form-${id}`).style.display = 'none';
   }
 
@@ -289,12 +487,11 @@
     const fd = new FormData();
     fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
     fd.append('time', timeVal);
-
     const resp = await fetch(`/attendance/${id}/edit/`, { method: 'POST', body: fd });
     const data = await resp.json();
-    if(data.success) {
+    if (data.success) {
       const span = document.getElementById(`time-display-${id}`);
-      span.innerHTML = data.time + (data.is_late ? ' <i class="fas fa-exclamation-triangle text-yellow-500"></i>' : '');
+      span.textContent = data.time;
       span.className   = data.is_late ? 'text-yellow-600 font-medium' : 'text-slate-600';
       cancelEdit(id);
     } else {
@@ -303,14 +500,12 @@
   }
 
   async function deleteAttendance(id, sid) {
-    if(!confirm('Delete this attendance record?')) return;
+    if (!confirm('Delete this attendance record?')) return;
     const fd = new FormData();
     fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
     const resp = await fetch(`/attendance/${id}/delete/`, { method: 'POST', body: fd });
     const data = await resp.json();
-    if(data.success) {
-      document.getElementById(`rec-${id}`)?.remove();
-    }
+    if (data.success) document.getElementById(`rec-${id}`)?.remove();
   }
 </script>
 {% endblock %}
